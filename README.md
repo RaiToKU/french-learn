@@ -3,6 +3,8 @@
 面向「只会蹦单词、阅读长文吃力、听力跟不上、语法薄弱」的 A1–B2 学员。两套语料打底——
 **核心语库 A1–B2** 与 **情景口语语库**——上面盖了八类训练、四个小游戏、一套间隔复习和一套升级系统。
 
+
+**在线版（GitHub Pages）**：<https://raitoku.github.io/french-learn/> · ![deploy](https://github.com/RaiToKU/french-learn/actions/workflows/deploy.yml/badge.svg)
 零依赖、纯静态：不安装、不联网、不构建，双击即用。
 
 ## 视觉语言：黄黑标识系统
