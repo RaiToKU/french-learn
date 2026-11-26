@@ -1,0 +1,69 @@
+name: Deploy (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 语法与语料自检
+        run: |
+          set -e
+          for f in js/*.js; do node --check "$f"; done
+          node - <<'NODE'
+          global.window = global;
+          ['data/lexicon.js','data/grammar.js','data/verbs.js','data/frames.js',
+           'data/readings.js','data/scenarios.js'].forEach(f => require('./' + f));
+          const lx = Object.values(FR.LEXICON).reduce((a, b) => a + b.length, 0);
+          const g = FR.GRAMMAR.length, v = FR.VERBS.length, s = FR.SCENES.length;
+          console.log(`lexicon ${lx} / grammar ${g} / verbs ${v} / scenes ${s}`);
+          if (lx < 6000 || g < 60 || v < 20 || s < 10) {
+            console.error('语料数量异常，停止部署');
+            process.exit(1);
+          }
+          NODE
+
+      - name: 组装发布目录
+        run: |
+          set -e
+          mkdir -p _site
+          cp -R index.html css js data _site/
+          cp NOTICE.md _site/ 2>/dev/null || true
+          touch _site/.nojekyll
+          du -sh _site
+          find _site -maxdepth 1
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 发布到 Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

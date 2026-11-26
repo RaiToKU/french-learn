@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f2ece0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101319" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="A1–B2 法语学习语库：核心词汇、句型骨架、语法字典、动词变位、情景口语，配小游戏与间隔复习。">
+<title>Bonjour · 法语学习语库 A1–B2</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Crect x='1' y='1' width='32' height='32' rx='7' fill='%23ffc400' stroke='%2317140c' stroke-width='2.4'/%3E%3Ctext x='17' y='23' font-size='16' font-weight='700' font-family='Georgia,serif' fill='%2317140c' text-anchor='middle'%3Efr%3C/text%3E%3Crect x='9.5' y='25.5' width='15' height='2.2' rx='1.1' fill='%2317140c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#/home" aria-label="返回首页">
+    <span class="logo" aria-hidden="true"><svg viewBox="0 0 34 34">
+      <path d="M12 8.5v17M12 8.5h11M12 17h8.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"></path>
+      <rect x="25.5" y="21.5" width="3.2" height="3.2" fill="currentColor"></rect>
+    </svg></span>
+    <span class="brandtxt">法语学习语库<em>A1–B2</em></span>
+  </a>
+  <a class="duo" id="topDue" href="#/review">复习 <b>0</b></a>
+</header>
+
+<main id="app" class="app" tabindex="-1"></main>
+
+<nav class="tabbar" id="tabbar" aria-label="主导航">
+  <a href="#/home" data-tab="#/home">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.7 12 3.5l9 7.2"/><path d="M5.5 9.5V20a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V9.5"/></svg></i>
+    <span>首页</span>
+  </a>
+  <a href="#/lib/lexicon" data-tab="#/lib">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.4C10.4 4.9 8 4 4.5 4v13.6c3.5 0 5.9.9 7.5 2.4 1.6-1.5 4-2.4 7.5-2.4V4C16 4 13.6 4.9 12 6.4Z"/><path d="M12 6.4V20"/></svg></i>
+    <span>语库</span>
+  </a>
+  <a href="#/games" data-tab="#/games">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="11" rx="3.5"/><path d="M7.5 11v3M6 12.5h3M15.5 11.6h.01M17.6 13.4h.01"/></svg></i>
+    <span>游戏</span>
+  </a>
+  <a href="#/review" data-tab="#/review">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="12" height="15" rx="2.5"/><path d="M8 3h12v15"/><path d="M7.5 10h5M7.5 13.5h5"/></svg></i>
+    <span>复习</span>
+  </a>
+  <a href="#/me" data-tab="#/me">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="3.6"/><path d="M5.2 20.2c1.2-3.6 3.9-5.3 6.8-5.3s5.6 1.7 6.8 5.3"/></svg></i>
+    <span>我的</span>
+  </a>
+</nav>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="data/lexicon.js"></script>
+<script src="data/frames.js"></script>
+<script src="data/grammar.js"></script>
+<script src="data/verbs.js"></script>
+<script src="data/readings.js"></script>
+<script src="data/scenarios.js"></script>
+<script src="js/util.js"></script>
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/views-core.js"></script>
+<script src="js/views-grammar.js"></script>
+<script src="js/views-scenes.js"></script>
+<script src="js/views-drills.js"></script>
+<script src="js/views-games.js"></script>
+<script src="js/views-review.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
