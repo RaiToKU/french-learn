@@ -143,6 +143,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startMatch = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startMatch(); })) return;
     var level = APP.ui.level;
     var pairs = Math.max(4, Math.min(10, Math.round(P.sessionSize(20) / 2)));
     var built = matchItems(level, pairs);
@@ -249,6 +250,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startSprint = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startSprint(); })) return;
     var items = sprintItems(APP.ui.level, 30);
     APP.session.sprint = {items: items, idx: 0, score: 0, hits: 0, combo: 0, maxCombo: 0, left: 60, finished: false};
     APP.clock.stop();
@@ -339,6 +341,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startAudio = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startAudio(); })) return;
     APP.session.audio = {items: audioItems(APP.ui.level, P.sessionSize(24)), idx: 0, score: 0, finished: false, auto: true};
     APP.clock.stop();
     APP.render();
@@ -463,6 +466,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startGConj = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startGConj(); })) return;
     APP.session.gconj = {items: cjItems(60), idx: 0, score: 0, hits: 0, combo: 0, maxCombo: 0, left: 60, finished: false};
     APP.clock.stop();
     APP.clock.start('gconj', gconjTick);

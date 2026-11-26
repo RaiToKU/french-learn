@@ -51,6 +51,22 @@
 | --- | --- | --- |
 | ![变位表](docs/preview-verbs.png) | ![复习](docs/preview-review.png) | ![我的](docs/preview-me.png) |
 
+## 性能：语料懒加载
+
+6,544 条词汇如果一次性同步加载要 1.37MB，首屏会被它拖住。现在拆成按级别：
+
+| 级别 | 文件 | 体积 | 何时加载 |
+| --- | --- | --- | --- |
+| A1 | `data/lexicon-a1.js` | 165KB | 随页面同步（首屏就有内容） |
+| A2 | `data/lexicon-a2.js` | 294KB | 空闲时自动预载，或选中 A2 时 |
+| B1 | `data/lexicon-b1.js` | 486KB | 同上（A2 载完后接着载） |
+| B2 | `data/lexicon-b2.js` | 456KB | 同上 |
+
+- 级别 chip 在对应数据还没到时是**虚线圈 + 载入**态，载完自动点亮并显示词数
+- 搜索、复习、训练、游戏需要全量语料时，会先补载缺失级别并提示「正在载入 A2 / B1 …」，就绪后再开始，不会只拿 A1 的一半数据
+- 词卡校验按级别跳过未载入的部分，**不会**因为懒加载误删 A2–B2 的复习记录
+- 首屏从 1.37MB 降到约 180KB（含其它语料），`file://` 双击打开同样生效（脚本注入不走 fetch）
+
 ## 打开方式
 
 - 直接双击 `index.html`（file:// 可运行：语料是 `window.FR.*` 全局对象，不走 fetch）。
@@ -139,12 +155,19 @@ french-learn/
 ├── index.html            应用外壳（顶栏、路由容器、5 键导航）
 ├── css/style.css         设计系统（三端断点 + 深色模式）
 ├── data/                 语料（纯 JS 全局对象，无构建）
-│   ├── lexicon.js        FR.LEXICON + FR.LEXICON_META  分级词汇 6,544 条（含来源信息）
+│   ├── lexicon-meta.js   FR.LEXICON_META 总量与来源（0.8KB，始终加载）
+│   ├── lexicon-a1.js     FR.LEXICON.A1  820 条（165KB，随页面同步加载）
+│   ├── lexicon-a2.js     FR.LEXICON.A2  1,387 条（懒加载，选中/空闲时载入）
+│   ├── lexicon-b1.js     FR.LEXICON.B1  2,228 条（同上）
+│   ├── lexicon-b2.js     FR.LEXICON.B2  2,109 条（同上）
 │   ├── frames.js         FR.FRAMES       句型骨架
 │   ├── grammar.js        FR.GRAMMAR + FR.GRAMMAR_META  语法点 / 分类 / 覆盖基准
 │   ├── verbs.js          FR.VERBS + FR.VERB_TENSES     变位表
 │   ├── readings.js       FR.READINGS     精读篇目
 │   └── scenarios.js      FR.SCENES       情景对话
+├── scripts/              维护脚本
+│   ├── split-lexicon.js  把全量 lexicon.js 拆成按级别懒加载的 4 个文件
+│   └── deploy-pages.sh   建仓库 + 推送 + 开启 Pages（需 gh 已认证）
 ├── docs/                 界面截图
 └── js/
     ├── util.js           工具（转义、稳定洗牌、归一化判分、句切分、toast）

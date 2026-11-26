@@ -49,10 +49,16 @@ window.APP = window.APP || {};
 
   P.levelChips = function (active, act, counts) {
     var lvs = ['ALL', 'A1', 'A2', 'B1', 'B2'];
+    var ld = APP.loader;
     return '<div class="chips">' + lvs.map(function (lv) {
       var n = counts ? counts[lv] : null;
-      return '<button class="chip ' + (active === lv ? 'on' : '') + '" data-act="' + (act || 'lexLevel') + '" data-v="' + lv + '">' +
-        (lv === 'ALL' ? '全部' : lv) + (n ? ' <b class="chip-n">' + n + '</b>' : '') + '</button>';
+      var notLoaded = lv !== 'ALL' && ld && !ld.loaded(lv);
+      return '<button class="chip ' + (active === lv ? 'on' : '') + (notLoaded ? ' loading' : '') +
+        '" data-act="' + (act || 'lexLevel') + '" data-v="' + lv + '"' +
+        (notLoaded ? ' aria-disabled="true" title="载入后可选中"' : '') + '>' +
+        (lv === 'ALL' ? '全部' : lv) +
+        (notLoaded ? ' <b class="chip-n">载入</b>' : (n ? ' <b class="chip-n">' + n + '</b>' : '')) +
+        '</button>';
     }).join('') + '</div>';
   };
 

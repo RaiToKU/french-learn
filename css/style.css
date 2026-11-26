@@ -301,6 +301,10 @@ p{margin:0}
 .chip.mini{padding:4px 9px;font-size:11px}
 .chip .chip-n{font-weight:800;font-size:10px;opacity:.7;margin-left:3px;font-family:var(--mono)}
 .chip.on .chip-n{opacity:.85}
+.chip.loading{
+  color:var(--muted);border-style:dashed;background:transparent;cursor:progress;
+}
+.chip.loading .chip-n{opacity:.9;font-weight:800}
 
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;

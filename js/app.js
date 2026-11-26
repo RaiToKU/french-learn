@@ -5,6 +5,85 @@ window.APP = window.APP || {};
   var appEl = null;
   var lastHash = null;
 
+  /* ---------------- 语料懒加载 ---------------- */
+  var LEVELS = ['A1', 'A2', 'B1', 'B2'];
+  var loaded = {A1: 1};   /* A1 随页面同步载入，其余按需 */
+  var pending = {};
+
+  APP.loader = {
+    levels: LEVELS,
+    loaded: function (lv) { return !!loaded[lv]; },
+    missing: function () { return LEVELS.filter(function (lv) { return !loaded[lv]; }); },
+    allLoaded: function () { return APP.loader.missing().length === 0; },
+    load: function (levels) {
+      var todo = (levels || LEVELS).filter(function (lv) { return !loaded[lv]; });
+      if (!todo.length) return Promise.resolve([]);
+      return Promise.all(todo.map(function (lv) {
+        if (pending[lv]) return pending[lv];
+        pending[lv] = new Promise(function (resolve, reject) {
+          var el = document.createElement('script');
+          el.src = 'data/lexicon-' + lv.toLowerCase() + '.js';
+          el.async = true;
+          el.onload = function () { loaded[lv] = 1; delete pending[lv]; resolve(lv); };
+          el.onerror = function () { delete pending[lv]; reject(new Error('载入失败 ' + lv)); };
+          document.head.appendChild(el);
+        });
+        return pending[lv];
+      }));
+    },
+    /* 需要全量语料的动作（复习/训练/游戏）：缺级别就先载入再执行 */
+    ensureAll: function (then) {
+      var miss = APP.loader.missing();
+      if (!miss.length) return false;
+      U.toast('正在载入 ' + miss.join(' / ') + ' …');
+      APP.loader.load(miss).then(function () {
+        rebuildCatalog();
+        U.toast('语料已就绪');
+        then && then();
+      }).catch(function () { U.toast('语料载入失败，请检查网络后重试'); });
+      return true;
+    }
+  };
+
+  /* 载完一个级别：重建目录 → 刷新界面 */
+  function afterLevelLoaded() {
+    rebuildCatalog();
+    var ae = document.activeElement;
+    var typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+    if (typing) { refreshChips(); return; }   /* 别打断输入 */
+    render();
+  }
+
+  function rebuildCatalog() {
+    buildCatalog();
+    verifyCardSignatures();
+  }
+
+  function refreshChips() {
+    if (!appEl) return;
+    var chips = appEl.querySelectorAll('[data-act="setLevel"],[data-act="lexLevel"]');
+    for (var i = 0; i < chips.length; i++) {
+      var lv = chips[i].getAttribute('data-v');
+      if (lv && lv !== 'ALL' && APP.loader.loaded(lv)) {
+        chips[i].classList.remove('loading');
+        chips[i].removeAttribute('aria-disabled');
+      }
+    }
+  }
+
+  /* 空闲时依次预载 A2 → B1 → B2，载完即点亮 */
+  function prefetch() {
+    var queue = ['A2', 'B1', 'B2'];
+    function next() {
+      var lv = queue.shift();
+      if (!lv) return;
+      APP.loader.load([lv]).then(function () { afterLevelLoaded(); next(); }).catch(function () { queue.length = 0; });
+    }
+    var kick = function () { setTimeout(next, 300); };
+    if (window.requestIdleCallback) window.requestIdleCallback(kick, {timeout: 1500});
+    else setTimeout(kick, 900);
+  }
+
   /* ---------------- 目录索引 ---------------- */
   function buildCatalog() {
     var c = {lexicon: [], frames: [], chunks: [], verbs: FR.VERBS || [], all: [], byId: {}};
@@ -18,7 +97,8 @@ window.APP = window.APP || {};
       return id;
     }
 
-    Object.keys(FR.LEXICON).forEach(function (lv) {
+    LEVELS.forEach(function (lv) {
+      if (!(window.FR && FR.LEXICON && FR.LEXICON[lv])) return;
       FR.LEXICON[lv].forEach(function (e) {
         var it = {
           id: uid('lx:' + lv + ':', e.w + '|' + e.cn), type: 'lexicon', lv: lv, w: e.w, p: e.p,
@@ -226,9 +306,32 @@ window.APP = window.APP || {};
   APP.actions = Object.assign(APP.actions, {
     /* 词汇 */
     goLex: function (el) { APP.ui.lexLevel = el.dataset.v; APP.ui.lexLimit = 60; go('#/lib/lexicon'); },
-    lexLevel: function (el) { APP.ui.lexLevel = el.dataset.v; APP.ui.lexLimit = 60; render(); },
+    lexLevel: function (el) {
+      var v = el.dataset.v;
+      var need = v === 'ALL' ? APP.loader.missing() : (APP.loader.loaded(v) ? [] : [v]);
+      if (need.length) {
+        U.toast('正在载入 ' + need.join(' / ') + ' …');
+        APP.loader.load(need).then(function () {
+          APP.ui.lexLevel = v; APP.ui.lexLimit = 60; rebuildCatalog(); render();
+        }).catch(function () { U.toast('载入失败，请检查网络'); });
+        return;
+      }
+      APP.ui.lexLevel = v; APP.ui.lexLimit = 60; render();
+    },
     lexTheme: function (el) { APP.ui.lexTheme = el.dataset.v; APP.ui.lexLimit = 60; render(); },
-    lexSearch: function (el) { APP.ui.lexQuery = el.value; APP.ui.lexLimit = 60; refreshLexList(); },
+    lexSearch: function (el) {
+      APP.ui.lexQuery = el.value;
+      APP.ui.lexLimit = 60;
+      refreshLexList();
+      /* 搜索要覆盖全部语料：缺级别时后台补载，载完刷新列表 */
+      if (APP.ui.lexQuery.trim() && APP.loader.missing().length) {
+        APP.loader.load(APP.loader.missing()).then(function () {
+          rebuildCatalog();
+          if (document.activeElement && document.activeElement.id === 'lexInput') refreshLexList();
+          else render();
+        }).catch(function () {});
+      }
+    },
     lexMore: function () { APP.ui.lexLimit += 60; refreshLexList(); },
     lexToggle: function (el) {
       var id = el.dataset.id;
@@ -328,8 +431,20 @@ window.APP = window.APP || {};
       render();
     },
     setLevel: function (el) {
-      APP.ui.level = el.dataset.v || 'ALL';
-      APP.store.setLevel(APP.ui.level);
+      var v = el.dataset.v || 'ALL';
+      var need = v === 'ALL' ? APP.loader.missing() : (APP.loader.loaded(v) ? [] : [v]);
+      if (need.length) {
+        U.toast('正在载入 ' + need.join(' / ') + ' …');
+        APP.loader.load(need).then(function () {
+          APP.ui.level = v;
+          APP.store.setLevel(v);
+          rebuildCatalog();
+          render();
+        }).catch(function () { U.toast('载入失败，请检查网络'); });
+        return;
+      }
+      APP.ui.level = v;
+      APP.store.setLevel(v);
       render();
     },
     trainLevel: function (el) {
@@ -429,6 +544,7 @@ window.APP = window.APP || {};
 
     /* 复习 */
     startReview: function () {
+      if (APP.loader.ensureAll(function () { APP.actions.startReview(); })) return;
       var lv = APP.ui.level || 'ALL';
       function inLevel(id) {
         var it = APP.catalog.byId[id];
@@ -843,12 +959,21 @@ window.APP = window.APP || {};
   }
 
   /* 词条插入/改序后，旧记录不能静默指到别的词上 */
+  function levelOfCardId(id) {
+    var m = /^lx:([AB]\d):/.exec(String(id || ''));
+    return m ? m[1] : null;
+  }
+
   function verifyCardSignatures() {
     var data = APP.store.data, changed = false, dropped = 0;
     Object.keys(data.stars || {}).forEach(function (id) {
+      var lv = levelOfCardId(id);
+      if (lv && !loaded[lv]) return;          /* 该级别还没载入，先别动 */
       if (!APP.catalog.byId[id]) { delete data.stars[id]; changed = true; }
     });
     Object.keys(data.cards).forEach(function (id) {
+      var lv = levelOfCardId(id);
+      if (lv && !loaded[lv]) return;          /* 同上 */
       var it = APP.catalog.byId[id];
       if (!it) { delete data.cards[id]; dropped++; changed = true; return; }
       var sig = String(it.front || '').slice(0, 24);
@@ -877,6 +1002,7 @@ window.APP = window.APP || {};
     }, {passive: true});
 
     document.addEventListener('click', delegateClicks);
+    if (typeof prefetch === 'function') prefetch();
     document.addEventListener('input', delegateInputs);
     document.addEventListener('change', delegateInputs);
     document.addEventListener('keydown', function (e) {

@@ -71,6 +71,7 @@ window.APP = window.APP || {};
 
   /* ---------------- 组句训练 ---------------- */
   APP.actions.startBuild = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startBuild(); })) return;
     var items = sample(APP.ui.level, P.sessionSize(12)).map(function (x) {
       var toks = U.shuffle(tokensOf(x.fr).map(function (t, i) { return {t: t, id: i}; }));
       return {id: x.id, cn: x.cn, answer: x.fr, tokens: toks, chosen: [], checked: false, ok: false, counted: false};
@@ -139,6 +140,7 @@ window.APP = window.APP || {};
 
   /* ---------------- 听力听写 ---------------- */
   APP.actions.startListen = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startListen(); })) return;
     var items = sample(APP.ui.level, P.sessionSize(12)).map(function (x) {
       return {id: x.id, fr: x.fr, cn: x.cn, typed: '', checked: false, ok: false, revealed: false, counted: false};
     });
@@ -198,6 +200,7 @@ window.APP = window.APP || {};
 
   /* ---------------- 语法小测 ---------------- */
   APP.actions.startQuiz = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startQuiz(); })) return;
     var pool = [];
     FR.GRAMMAR.forEach(function (g) {
       (g.quiz || []).forEach(function (q, i) {
@@ -269,6 +272,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startClose = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startClose(); })) return;
     var lv = APP.ui.level;
     var pool = APP.catalog.lexicon.filter(function (it) {
       if (lv !== 'ALL' && it.lv !== lv) return false;
@@ -352,6 +356,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startConj = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startConj(); })) return;
     var keys = FR.VERB_TENSES.map(function (t) { return t.key; });
     var items = U.shuffle(FR.VERBS).slice(0, Math.min(P.sessionSize(20), FR.VERBS.length)).map(function (v) {
       var tk = keys[Math.floor(Math.random() * keys.length)];
@@ -416,6 +421,7 @@ window.APP = window.APP || {};
 
   /* ---------------- 中→法 拼写（主动产出） ---------------- */
   APP.actions.startSpell = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startSpell(); })) return;
     var lv = APP.ui.level;
     var pool = APP.catalog.lexicon.filter(function (it) {
       if (lv !== 'ALL' && it.lv !== lv) return false;
@@ -475,6 +481,7 @@ window.APP = window.APP || {};
 
   /* ---------------- 快判对错 ---------------- */
   APP.actions.startJudge = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startJudge(); })) return;
     var lv = APP.ui.level;
     var pool = APP.catalog.lexicon.filter(function (it) {
       return (lv === 'ALL' || it.lv === lv) && it.w.length <= 14 && String(it.cn).length <= 20;
@@ -575,6 +582,7 @@ window.APP = window.APP || {};
   }
 
   APP.actions.startMix = function () {
+    if (APP.loader.ensureAll(function () { APP.actions.startMix(); })) return;
     var kinds = ['judge', 'close', 'spell', 'conj', 'gram'];
     var n = P.sessionSize(30), items = [], guard = 0;
     while (items.length < n && guard++ < n * 12) {

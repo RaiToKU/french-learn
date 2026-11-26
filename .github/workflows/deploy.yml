@@ -30,9 +30,13 @@ jobs:
           for f in js/*.js; do node --check "$f"; done
           node - <<'NODE'
           global.window = global;
-          ['data/lexicon.js','data/grammar.js','data/verbs.js','data/frames.js',
-           'data/readings.js','data/scenarios.js'].forEach(f => require('./' + f));
+          ['data/lexicon-meta.js','data/lexicon-a1.js','data/lexicon-a2.js',
+           'data/lexicon-b1.js','data/lexicon-b2.js','data/grammar.js','data/verbs.js',
+           'data/frames.js','data/readings.js','data/scenarios.js'].forEach(f => require('./' + f));
           const lx = Object.values(FR.LEXICON).reduce((a, b) => a + b.length, 0);
+          const levels = Object.keys(FR.LEXICON).sort().join(',');
+          console.log('levels', levels);
+          if (levels !== 'A1,A2,B1,B2') { console.error('分级文件缺失'); process.exit(1); }
           const g = FR.GRAMMAR.length, v = FR.VERBS.length, s = FR.SCENES.length;
           console.log(`lexicon ${lx} / grammar ${g} / verbs ${v} / scenes ${s}`);
           if (lx < 6000 || g < 60 || v < 20 || s < 10) {
