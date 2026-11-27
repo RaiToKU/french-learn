@@ -189,59 +189,10 @@ open(os.path.join(OUTDIR, 'lexicon-meta.js'), 'w', encoding='utf-8').write(
     '/* 语料元信息（很小，始终加载） */\nwindow.FR = window.FR || {};\nFR.LEXICON_META = '
     + json.dumps(meta, ensure_ascii=False) + ';\n')
 
-# ---------- 变位练习池 ----------
-conj = list(csv.DictReader(open(os.path.join(DECK, 'conjugations.tsv'), encoding='utf-8'), delimiter='\t'))
-gloss = {}
-for lv in LEVELS:
-    for e in std[lv]:
-        gloss[e['w'].lower()] = e['cn']
-PERS = ['je', 'tu', 'il', 'nous', 'vous', 'ils']
-forms, skipped = {}, 0
-for row in conj:
-    inf = (row.get('word') or '').strip()
-    raw = row.get('conjugation') or ''
-    pres = None
-    for seg in raw.split('|'):
-        seg = seg.strip()
-        if seg.startswith('现在时'):
-            pres = seg.split(':', 1)[1] if ':' in seg else seg.split('：', 1)[1]
-    if not inf or not pres:
-        skipped += 1
-        continue
-    parts = [p.strip() for p in pres.split(',')]
-    if len(parts) != 6:
-        skipped += 1
-        continue
-    clean = []
-    for p in parts:
-        p = p.replace('\u2019', "'").strip()
-        # 先去掉空格形式（je / tu / il …），再去掉省音形式（j' / m' / t' / s' / n' / qu'）
-        p = re.sub(r'^(?:je|tu|il|elle|on|nous|vous|ils|elles)\s+', '', p, flags=re.I)
-        p = re.sub(r"^(?:j|m|t|s|n|c|qu)'", '', p, flags=re.I)
-        p = p.strip()
-        # 卡组用破折号占位缺失人称；带残留代词即视为解析失败
-        if not p or re.fullmatch(r'[—–-]+', p) or re.match(r"^(?:je|tu|il|elle|on|nous|vous|ils|elles)\b|^(?:j|m|t|s|n|qu)'", p, re.I):
-            skipped += 1
-            clean = None
-            break
-        clean.append(p)
-    if clean is None:
-        continue
-    forms[inf] = {'cn': gloss.get(inf.lower(), ''), 'f': clean}
-text = ('/* 变位练习池：%d 个动词的现在时六个人称（同一卡组，CC BY-NC-SA 4.0）\n'
-        '   供「变位速练 / 变位冲刺」抽题；动词变位表仍用手工校对的 22 个高频动词 */\n'
-        'window.FR = window.FR || {};\n'
-        'FR.VERB_FORMS = ') % len(forms) + json.dumps(forms, ensure_ascii=False) + ';\n'
-open(os.path.join(OUTDIR, 'verb-forms.js'), 'w', encoding='utf-8').write(text)
-
-# 回填 meta.verbs 并重写 meta 文件（关于页要显示这个数，但不该为此去加载 205KB 的变位文件）
-meta['verbs'] = len(forms)
-open(os.path.join(OUTDIR, 'lexicon-meta.js'), 'w', encoding='utf-8').write(
-    '/* 语料元信息（很小，始终加载） */\nwindow.FR = window.FR || {};\nFR.LEXICON_META = '
-    + json.dumps(meta, ensure_ascii=False) + ';\n')
+# 变位文件由 scripts/build-verb-tenses.py 生成（现为多时式，含推导规则与回归校验）
+meta['verbs'] = 0
 
 print('levels', counts, 'total', total, '| 手写新增', merged_curated, '覆盖', replaced)
-print('verb-forms', len(forms), 'skipped', skipped, round(len(text.encode()) / 1024), 'KB')
-bad_forms = [k for k, v in forms.items() if len(v['f']) != 6 or any(not x for x in v['f'])]
-assert not bad_forms, '变位形式不完整: %s' % bad_forms[:5]
+
+
 print('无例句', sum(1 for lv in LEVELS for e in std[lv] if not e['ex']))

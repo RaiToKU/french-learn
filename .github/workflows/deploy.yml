@@ -31,7 +31,7 @@ jobs:
           node - <<'NODE'
           global.window = global;
           ['data/lexicon-meta.js','data/lexicon-a1.js','data/lexicon-a2.js',
-           'data/lexicon-b1.js','data/lexicon-b2.js','data/lexicon-c1.js','data/verb-forms.js',
+           'data/lexicon-b1.js','data/lexicon-b2.js','data/lexicon-c1.js','data/verb-forms.js','data/verb-tenses.js',
            'data/grammar.js','data/verbs.js','data/frames.js','data/readings.js',
            'data/scenarios.js'].forEach(f => require('./' + f));
           const lx = Object.values(FR.LEXICON).reduce((a, b) => a + b.length, 0);
@@ -53,10 +53,18 @@ jobs:
             if ((FR.LEXICON[lv] || []).length < 400) { console.error(lv, '词条过少'); process.exit(1); }
           });
           // 变位形式内容校验：六项、非空、无破折号占位、无残留人称代词
-          const badForms = Object.entries(FR.VERB_FORMS).filter(([, v]) =>
-            !Array.isArray(v.f) || v.f.length !== 6 ||
-            v.f.some(x => !x || /^[—–-]+$/.test(x) || /^(j|m|t|s|n|qu)'/i.test(x)));
-          if (badForms.length) { console.error('变位形式异常', badForms.slice(0, 3)); process.exit(1); }
+          // 基础/进阶时式文件：条数一致，每条 6 个人称，不空、不占位、不残留人称代词
+          const advKeys = Object.keys(FR.VERB_TENSES_ADV || {});
+          if (advKeys.length !== verbs) { console.error('进阶时式条数不匹配', advKeys.length, verbs); process.exit(1); }
+          const badForms = Object.entries(FR.VERB_FORMS).filter(([inf, v]) => {
+            const parts = String(v).split('|');
+            const pres = (parts[1] || '').split(',');
+            const pc = (parts[2] || '').split(',');
+            const imp = (parts[3] || '').split(',');
+            return [pres, pc, imp].some(list => list.length !== 6 ||
+              list.some(x => !x || /^[—–-]+$/.test(x) || /^(j|m|t|s|n|qu)'/i.test(x)));
+          });
+          if (badForms.length) { console.error('变位形式异常', badForms.slice(0, 3).map(x => x[0])); process.exit(1); }
           // 每条词必须有释义与例句，避免脏数据上线
           const dirty = Object.entries(FR.LEXICON).flatMap(([lv, list]) =>
             list.filter(e => !e.w || !e.p || !e.cn || !e.ex || !e.exCn).map(e => lv + ':' + e.w));

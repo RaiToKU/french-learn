@@ -432,7 +432,7 @@ window.APP = window.APP || {};
 
   /* ---------- 4. 变位冲刺（60 秒） ---------- */
   function cjItems(n) {
-    var pool = P.conjPool(), out = [];
+    var pool = P.conjPool(APP.ui.conjTenses), out = [];
     for (var i = 0; i < n; i++) {
       var it = P.conjItem(pool);
       if (it) out.push(it);
@@ -442,10 +442,10 @@ window.APP = window.APP || {};
 
   APP.actions.startGConj = function () {
     if (APP.loader.ensureAll(function () { APP.actions.startGConj(); })) return;
-    if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
+    var need = APP.loader.needTense();
+    if (need.base || need.adv) {
       U.toast('正在载入变位词库…');
-      APP.loader.loadForms().then(function () { APP.actions.startGConj(); })
-        .catch(function () { APP.actions.startGConj(); });
+      APP.loader.ensureTense(function () { APP.actions.startGConj(); });
       return;
     }
     var built = cjItems(60);
@@ -480,7 +480,9 @@ window.APP = window.APP || {};
           '<div class="row between" style="margin-bottom:10px"><a class="chip" href="#/games">← 游戏</a></div>' +
           '<h1 class="game-title">变位冲刺</h1>' +
           '<p class="muted">60 秒内看「时式 + 人称」选出正确变位。答对连击加分，答错扣 3 秒。</p>' +
-          '<div class="card" style="margin-top:12px"><div class="muted small" style="margin-bottom:6px">难度</div>' +
+          '<div class="card" style="margin-top:12px"><div class="muted small" style="margin-bottom:6px">练哪些时式（可多选）</div>' +
+          P.conjTenseChips(APP.ui.conjTenses) +
+          '<div class="muted small" style="margin:10px 0 6px">难度</div>' +
           P.levelChips(APP.ui.level, 'setLevel') +
           '<button class="btn primary wide" style="margin-top:12px" data-act="startGConj">开始 60 秒</button></div>'
       };

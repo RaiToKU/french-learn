@@ -2,7 +2,7 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
-  APP.version = '1.3.0';
+  APP.version = '1.4.0';
   var appEl = null;
   var lastHash = null;
 
@@ -18,6 +18,35 @@ window.APP = window.APP || {};
     allLoaded: function () { return APP.loader.missing().length === 0; },
     /* 变位练习池（1,384 个动词的现在时）单独一个文件，进变位练习时才拉 */
     formsLoaded: function () { return !!(window.FR && FR.VERB_FORMS); },
+    tensesLoaded: function () { return !!(window.FR && FR.VERB_TENSES_ADV); },
+    tensesFailed: false,
+    loadTenses: function () {
+      if (APP.loader.tensesLoaded()) return Promise.resolve();
+      if (APP.loader.tensesFailed) return Promise.reject(new Error('进阶时式此前载入失败'));
+      if (pending.__tenses) return pending.__tenses;
+      pending.__tenses = new Promise(function (resolve, reject) {
+        var el = document.createElement('script'), done = false;
+        var timer = setTimeout(function () { fail(new Error('进阶时式超时')); }, 8000);
+        function fail(err) {
+          if (done) return;
+          done = true; clearTimeout(timer); delete pending.__tenses;
+          APP.loader.tensesFailed = true;
+          reject(err);
+        }
+        el.src = 'data/verb-tenses.js';
+        el.async = true;
+        el.onload = function () {
+          if (done) return;
+          if (!window.FR || !FR.VERB_TENSES_ADV || !Object.keys(FR.VERB_TENSES_ADV).length) return fail(new Error('进阶时式为空'));
+          done = true; clearTimeout(timer); delete pending.__tenses;
+          if (APP.part) { APP.part._vf = undefined; APP.part._va = undefined; }
+          resolve();
+        };
+        el.onerror = function () { fail(new Error('进阶时式 404')); };
+        document.head.appendChild(el);
+      });
+      return pending.__tenses;
+    },
     formsFailed: false,
     loadForms: function () {
       if (APP.loader.formsLoaded()) return Promise.resolve();
@@ -37,7 +66,9 @@ window.APP = window.APP || {};
         el.onload = function () {
           if (done) return;
           if (!window.FR || !FR.VERB_FORMS || !Object.keys(FR.VERB_FORMS).length) return fail(new Error('变位数据为空'));
-          done = true; clearTimeout(timer); delete pending.__forms; resolve();
+          done = true; clearTimeout(timer); delete pending.__forms;
+          if (APP.part) { APP.part._vf = undefined; APP.part._va = undefined; }
+          resolve();
         };
         el.onerror = function () { fail(new Error('变位数据 404')); };
         document.head.appendChild(el);
@@ -93,6 +124,31 @@ window.APP = window.APP || {};
       return true;
     }
   };
+
+  /* 按当前选中的时式决定要载哪些变位文件 */
+  function needTenseData() {
+    var adv = false;
+    (APP.ui.conjTenses || ['pres']).forEach(function (k) {
+      var t = null;
+      (APP.part.CJ_TENSES || []).forEach(function (x) { if (x.key === k) t = x; });
+      if (t && t.src === 'adv') adv = true;
+    });
+    return {base: !APP.loader.formsLoaded(), adv: adv && !APP.loader.tensesLoaded()};
+  }
+
+  function ensureTenseData(then) {
+    var need = needTenseData();
+    if (!need.base && !need.adv) { then && then(); return Promise.resolve(); }
+    var jobs = [];
+    if (need.base && !APP.loader.formsFailed) jobs.push(APP.loader.loadForms());
+    if (need.adv && !APP.loader.tensesFailed) jobs.push(APP.loader.loadTenses());
+    if (!jobs.length) { then && then(); return Promise.resolve(); }
+    return Promise.all(jobs).then(function () { then && then(); })
+      .catch(function () { U.toast('变位数据载入失败，先用内置 22 个动词'); then && then(); });
+  }
+
+  APP.loader.needTense = needTenseData;
+  APP.loader.ensureTense = ensureTenseData;
 
   /* 载完一个级别：重建目录 → 刷新界面 */
   function afterLevelLoaded() {
@@ -202,7 +258,8 @@ window.APP = window.APP || {};
       quiz: {},
       trainLevel: 'ALL',
       level: APP.store.settings().level || 'ALL',
-      count: APP.store.settings().count || 10
+      count: APP.store.settings().count || 10,
+      conjTenses: (APP.store.settings().conjTenses || ['pres']).slice()
     };
     APP.session = {build: null, listen: null, quiz: null, review: null, match: null, sprint: null, audio: null, gconj: null, judge: null, mix: null};
   }
@@ -390,6 +447,13 @@ window.APP = window.APP || {};
     lexToggle: function (el) {
       var id = el.dataset.id;
       APP.ui.lexOpen = (APP.ui.lexOpen === id) ? null : id;
+      var it = APP.catalog.byId[id];
+      /* 走进动词详情时按需拉现在时变位 */
+      if (it && /^v\./.test(String(it.p || '')) && !APP.loader.formsLoaded() && !APP.loader.formsFailed) {
+        refreshLexList();
+        APP.loader.loadForms().then(function () { refreshLexList(); }).catch(function () {});
+        return;
+      }
       refreshLexList();
       var card = document.querySelector('[data-act="lexToggle"][data-id="' + id + '"]');
       if (card) { try { card.focus({preventScroll: true}); } catch (e) {} }
@@ -761,6 +825,23 @@ window.APP = window.APP || {};
     },
 
     /* 填空（语境产出） */
+    conjTense: function (el) {
+      var key = el.dataset.v, list = APP.ui.conjTenses.slice();
+      var i = list.indexOf(key);
+      if (i >= 0) {
+        if (list.length === 1) { U.toast('至少保留一种时式'); return; }
+        list.splice(i, 1);
+      } else {
+        list.push(key);
+        if (!APP.part.cjAvailable(key)) { U.toast('该时式数据载入中…'); }
+      }
+      var order = APP.part.CJ_TENSES.map(function (x) { return x.key; });
+      list.sort(function (x, y) { return order.indexOf(x) - order.indexOf(y); });
+      APP.ui.conjTenses = list;
+      APP.store.setConjTenses(list);
+      ensureTenseData();
+      render();
+    },
     importType: function (el) { APP.ui.importText = el.value; },
     closeType: function (el) {
       var s = APP.session.close;

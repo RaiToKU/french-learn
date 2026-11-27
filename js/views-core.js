@@ -65,48 +65,146 @@ window.APP = window.APP || {};
     }).join('') + '</div>';
   };
 
-  /* 变位练习池：优先 1,384 个动词的现在时（懒加载），回落到手工 22 词 × 5 时式 */
-  P.conjPool = function () {
+  /* ---------- 变位：数据解析 / 出题 ---------- */
+  P.CJ_PERSONS = ['je', 'tu', 'il / elle', 'nous', 'vous', 'ils / elles'];
+
+  P.CJ_TENSES = [
+    {key: 'pres', label: '现在时', fr: 'présent', src: 'base'},
+    {key: 'imp', label: '未完成过去时', fr: 'imparfait', src: 'base'},
+    {key: 'pc', label: '复合过去时', fr: 'passé composé', src: 'base'},
+    {key: 'fut', label: '简单将来时', fr: 'futur simple', src: 'adv'},
+    {key: 'cond', label: '条件式现在时', fr: 'conditionnel présent', src: 'adv'},
+    {key: 'subj', label: '虚拟式现在时', fr: 'subjonctif présent', src: 'adv'},
+    {key: 'impv', label: '命令式', fr: 'impératif', src: 'base', persons: [1, 3, 4]}
+  ];
+
+  /* 基础文件（现在时/复合过去时/未完成过去时/命令式）解析为对象，缓存 */
+  P.verbForms = function () {
+    if (P._vf) return P._vf;
+    var raw = window.FR && FR.VERB_FORMS;
+    if (!raw) return null;                    /* 别缓存 null：文件晚到时要能重新解析 */
+    var map = {};
+    Object.keys(raw).forEach(function (inf) {
+      var parts = String(raw[inf]).split('|');
+      map[inf] = {
+        cn: parts[0] || '',
+        pres: (parts[1] || '').split(','),
+        pc: (parts[2] || '').split(','),
+        imp: (parts[3] || '').split(','),
+        impv: (parts[4] || '').split(',')
+      };
+    });
+    return (P._vf = map);
+  };
+
+  /* 进阶文件（简单将来时/条件式/虚拟式） */
+  P.verbAdv = function () {
+    if (P._va) return P._va;
+    var raw = window.FR && FR.VERB_TENSES_ADV;
+    if (!raw) return null;
+    var map = {};
+    Object.keys(raw).forEach(function (inf) {
+      var parts = String(raw[inf]).split('|');
+      map[inf] = {fut: (parts[0] || '').split(','), cond: (parts[1] || '').split(','), subj: (parts[2] || '').split(',')};
+    });
+    return (P._va = map);
+  };
+
+  P.cjTense = function (key) {
+    var hit = null;
+    P.CJ_TENSES.forEach(function (t) { if (t.key === key) hit = t; });
+    return hit;
+  };
+
+  /* 选中的时式是否有数据；用于「至少选一个」「该时式暂无数据」提示 */
+  P.cjAvailable = function (key) {
+    var t = P.cjTense(key);
+    if (!t) return false;
+    var src = t.src === 'adv' ? P.verbAdv() : P.verbForms();
+    if (!src) return false;
+    return Object.keys(src).length > 0;
+  };
+
+  /* 按选中的时式组池；每条 = 一个「动词 × 时式」，slots/labels 处理命令式只有 3 个人称的情况 */
+  P.conjPool = function (keys) {
+    var wanted = (keys && keys.length) ? keys : ['pres'];
+    var base = P.verbForms(), adv = P.verbAdv();
     var out = [];
-    if (window.FR && FR.VERB_FORMS) {
-      Object.keys(FR.VERB_FORMS).forEach(function (inf) {
-        var e = FR.VERB_FORMS[inf];
-        if (!e || !e.f || e.f.length !== 6) return;
-        var bad = e.f.some(function (f) { return !f || /^[—–-]+$/.test(f) || /^(j|m|t|s|n|qu)'/i.test(f); });
-        if (bad) return;                       /* 残缺/带代词的形式不进题库 */
-        out.push({inf: inf, cn: e.cn || '', tense: '现在时', forms: e.f});
+    wanted.forEach(function (key) {
+      var t = P.cjTense(key);
+      if (!t) return;
+      var src = t.src === 'adv' ? adv : base;
+      if (!src) return;
+      var labels = t.persons || [0, 1, 2, 3, 4, 5];
+      Object.keys(src).forEach(function (inf) {
+        var forms = src[inf] && src[inf][key];
+        if (!forms || !forms.length) return;
+        if (forms.some(function (f) { return !f || /^[—–-]+$/.test(f); })) return;
+        var slots = labels.map(function (_, i) { return i; }).filter(function (i) { return i < forms.length; });
+        if (slots.length < 3) return;            /* 凑不出 3 个选项的就不出题 */
+        out.push({
+          inf: inf, cn: (base && base[inf] && base[inf].cn) || '',
+          tenseKey: key, tenseLabel: t.label, forms: forms,
+          slots: slots, labels: labels.slice(0, slots.length)
+        });
       });
-    }
-    if (!out.length) {
+    });
+    if (!out.length) {                        /* 数据未到时回落到手工 22 词 */
       (FR.VERBS || []).forEach(function (v) {
         (FR.VERB_TENSES || []).forEach(function (t) {
-          if (v[t.key]) out.push({inf: v.inf, cn: v.cn, tense: t.label, forms: v[t.key]});
+          if (!v[t.key]) return;
+          out.push({
+            inf: v.inf, cn: v.cn, tenseKey: t.key, tenseLabel: t.label, forms: v[t.key],
+            slots: [0, 1, 2, 3, 4, 5], labels: [0, 1, 2, 3, 4, 5]
+          });
         });
       });
     }
     return out;
   };
 
-  P.CJ_PERSONS = ['je', 'tu', 'il / elle', 'nous', 'vous', 'ils / elles'];
-
+  /* 一条题：动词 × 时式 × 人称，选项取同动词同时式的其他人称 */
   P.conjItem = function (pool) {
     if (!pool || !pool.length) return null;
     var e = pool[Math.floor(Math.random() * pool.length)];
-    if (!e || !e.forms || e.forms.length !== 6) return null;
-    var pi = Math.floor(Math.random() * 6);
-    var answer = e.forms[pi], seen = {}, opts = [answer];
+    if (!e || !e.forms || !e.forms.length) return null;
+    var slots = e.slots || [0, 1, 2, 3, 4, 5], labels = e.labels || slots;
+    var k = Math.floor(Math.random() * slots.length);
+    var slot = slots[k];
+    var answer = e.forms[slot];
+    if (!answer) return null;
+    var seen = {}, opts = [answer];
     seen[answer] = 1;
-    U.shuffle([0, 1, 2, 3, 4, 5].filter(function (i) { return i !== pi; })).forEach(function (i) {
+    U.shuffle(slots.filter(function (i) { return i !== slot; })).forEach(function (i) {
       var f = e.forms[i];
       if (f && !seen[f] && opts.length < 4) { seen[f] = 1; opts.push(f); }
     });
+    /* 复合过去时（avoir 助动词）六个人称同形，去重后凑不满选项：用别的动词的该人称形式补足 */
+    if (opts.length < 3) {
+      U.shuffle(pool.filter(function (x) {
+        return x !== e && x.tenseKey === e.tenseKey && x.inf !== e.inf;
+      })).forEach(function (o) {
+        var f = o.forms[o.slots && o.slots.indexOf(k) >= 0 ? k : (o.slots ? o.slots[0] : 0)] || o.forms[0];
+        if (f && !seen[f] && opts.length < 4) { seen[f] = 1; opts.push(f); }
+      });
+    }
+    if (opts.length < 3) return null;          /* 仍然凑不齐就换一道，不硬凑 */
     return {
-      inf: e.inf, cn: e.cn, tenseLabel: e.tense, person: P.CJ_PERSONS[pi],
-      answer: answer, opts: U.shuffle(opts)
+      inf: e.inf, cn: e.cn, tenseKey: e.tenseKey, tenseLabel: e.tenseLabel,
+      person: P.CJ_PERSONS[labels[k]], slot: slot, answer: answer, opts: U.shuffle(opts)
     };
   };
 
-  /* ---------- 首页 ---------- */
+  /* 词典详情里的「最基础变位」：只看现在时 */
+  P.verbPres = function (word) {
+    var base = P.verbForms();
+    if (!base) return null;
+    var hit = base[String(word || '').toLowerCase()] || base[word];
+    if (!hit || !hit.pres || hit.pres.length !== 6 || hit.pres.some(function (f) { return !f; })) return null;
+    return hit.pres;
+  };
+
+  /* ---------- 首页 ---------- */  /* ---------- 首页 ---------- */
   P.questRow = function (q) {
     var pct = Math.round(q.progress / q.goal * 100);
     return '<div class="quest ' + (q.done ? 'done' : '') + '">' +
@@ -262,8 +360,15 @@ window.APP = window.APP || {};
       if (ui.lexLevel !== 'ALL' && it.lv !== ui.lexLevel) return false;
       if (ui.lexTheme !== 'ALL' && it.th !== ui.lexTheme) return false;
       if (q) {
-        var hay = (it.w + ' ' + it.cn + ' ' + it.ex + ' ' + it.exCn + ' ' + it.th).toLowerCase();
-        if (hay.indexOf(q) < 0) return false;
+        /* 关键词查询：法语输入只匹配词形（忽略重音），中文输入只匹配释义；
+           例句 / 例句翻译 / 主题里出现关键词都不算命中 */
+        var isCn = /[\u4e00-\u9fff]/.test(q);
+        if (isCn) {
+          if (String(it.cn || '').indexOf(q) < 0) return false;
+        } else {
+          var nq = U.norm(q), nw = U.norm(it.w);
+          if (nw.indexOf(nq) < 0) return false;
+        }
       }
       return true;
     });
@@ -286,6 +391,7 @@ window.APP = window.APP || {};
       '<button class="iconbtn ' + (added ? 'on' : '') + '" data-act="lexAdd" data-id="' + it.id + '" title="加入复习">＋</button>' +
       '</div></div>' +
       (open ?
+        P.lexConjBlock(it) +
         '<div class="ex">' +
         '<div class="fr">' + U.esc(it.ex) + '</div>' +
         '<div class="cn">' + U.esc(it.exCn) + '</div>' +
@@ -298,6 +404,37 @@ window.APP = window.APP || {};
         '</div>' : '') +
       '</article>';
   }
+
+  /* 词条详情里的变位（只放最基础的现在时） */
+  P.lexConjBlock = function (it) {
+    if (!/^v\./.test(String(it.p || ''))) return '';
+    var forms = P.verbPres(it.w);
+    if (!forms) {
+      if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
+        return '<div class="conj-box"><div class="muted small">变位载入中…</div></div>';
+      }
+      return '';
+    }
+    var rows = forms.map(function (f, i) {
+      return '<div class="conj-row"><span class="p">' + P.CJ_PERSONS[i] + '</span><span class="f">' + U.esc(f) + '</span></div>';
+    }).join('');
+    return '<div class="conj-box">' +
+      '<div class="row between" style="margin-bottom:4px"><b class="small">现在时</b>' +
+      '<span class="muted small">' + U.esc(it.w) + '</span></div>' + rows + '</div>';
+  };
+
+  /* 变位练习：时式多选 */
+  P.conjTenseChips = function (selected) {
+    selected = selected || ['pres'];
+    var avail = P.verbForms() || P.verbAdv();
+    return '<div class="chips wrap">' + P.CJ_TENSES.map(function (t) {
+      var on = selected.indexOf(t.key) >= 0;
+      var ready = P.cjAvailable(t.key);
+      return '<button class="chip mini ' + (on ? 'on' : '') + (avail && !ready ? ' loading' : '') +
+        '" data-act="conjTense" data-v="' + t.key + '"' + (avail && !ready ? ' aria-disabled="true"' : '') + '>' +
+        t.label + '</button>';
+    }).join('') + '</div>';
+  };
 
   P.lexFiltered = filteredLex;
 
@@ -327,7 +464,7 @@ window.APP = window.APP || {};
         }).join(' / ') + '）' +
         ' · 手工核心 ' + (meta.curated || 0) + ' 条 · 来源 the-only-french-deck（CC BY-NC-SA 4.0）</p>' +
         '<div class="filterbar">' +
-        '<div class="search"><i>🔍</i><input id="lexSearch" data-input="lexSearch" placeholder="搜法语 / 中文 / 主题" value="' + U.esc(APP.ui.lexQuery) + '" aria-label="搜索词条"></div>' +
+        '<div class="search"><i>🔍</i><input id="lexSearch" data-input="lexSearch" placeholder="法语词（自动忽略重音）/ 中文释义" value="' + U.esc(APP.ui.lexQuery) + '" aria-label="搜索词条"></div>' +
         P.levelChips(APP.ui.lexLevel, 'lexLevel', counts) +
         '<div class="chips" style="margin-top:6px">' + themeOpts.map(function (th) {
           return '<button class="chip mini ' + (APP.ui.lexTheme === th ? 'on' : '') + '" data-act="lexTheme" data-v="' + U.esc(th) + '">' +

@@ -339,13 +339,13 @@ window.APP = window.APP || {};
   /* ---------------- 变位速练 ---------------- */
   APP.actions.startConj = function () {
     if (APP.loader.ensureAll(function () { APP.actions.startConj(); })) return;
-    if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
+    var need = APP.loader.needTense();
+    if (need.base || need.adv) {
       U.toast('正在载入变位词库…');
-      APP.loader.loadForms().then(function () { APP.actions.startConj(); })
-        .catch(function () { APP.actions.startConj(); });   /* 失败标志已置位，这里直接走回落池 */
+      APP.loader.ensureTense(function () { APP.actions.startConj(); });
       return;
     }
-    var pool = P.conjPool();
+    var pool = P.conjPool(APP.ui.conjTenses);
     if (!pool.length) { U.toast('变位题库暂不可用'); return; }
     var n = Math.min(P.sessionSize(20), pool.length);
     var items = [];
@@ -366,8 +366,10 @@ window.APP = window.APP || {};
         html:
           '<div class="row between" style="margin-bottom:10px"><a class="chip" href="#/games">← 游戏</a></div>' +
           '<h1 class="game-title">变位速练</h1>' +
-          '<p class="muted">给动词、时式和主语，选出正确的变位形式。选项里混了同时式其他人称和其他时式，专治「形近混淆」。</p>' +
-          '<div class="card" style="margin-top:12px"><div class="muted small" style="margin-bottom:6px">本次题量</div>' + P.countChips(APP.ui.count) +
+          '<p class="muted">给动词、时式和主语，选出正确的变位形式。选项取同一动词同一时式的其他人称，专治「形近混淆」。</p>' +
+          '<div class="card" style="margin-top:12px"><div class="muted small" style="margin-bottom:6px">练哪些时式（可多选）</div>' +
+          P.conjTenseChips(APP.ui.conjTenses) +
+          '<div class="muted small" style="margin:10px 0 6px">本次题量</div>' + P.countChips(APP.ui.count) +
           '<button class="btn primary wide" style="margin-top:12px" data-act="startConj">开始练习</button></div>'
       };
     }
@@ -553,7 +555,7 @@ window.APP = window.APP || {};
       return {kind: 'spell', w: it.w, cn: it.cn, pos: it.p, typed: '', checked: false, ok: false, counted: false};
     }
     if (kind === 'conj') {
-      var it2 = P.conjItem(P.conjPool());
+      var it2 = P.conjItem(P.conjPool(APP.ui.conjTenses));
       if (!it2) return null;
       return {kind: 'conj', inf: it2.inf, cn: it2.cn, person: it2.person, tenseLabel: it2.tenseLabel,
         answer: it2.answer, opts: it2.opts, picked: null, counted: false};
@@ -568,6 +570,11 @@ window.APP = window.APP || {};
 
   APP.actions.startMix = function () {
     if (APP.loader.ensureAll(function () { APP.actions.startMix(); })) return;
+    var need2 = APP.loader.needTense();
+    if (need2.base || need2.adv) {
+      APP.loader.ensureTense(function () { APP.actions.startMix(); });
+      return;
+    }
     var kinds = ['judge', 'close', 'spell', 'conj', 'gram'];
     var n = P.sessionSize(30), items = [], guard = 0;
     while (items.length < n && guard++ < n * 12) {

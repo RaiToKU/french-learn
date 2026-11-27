@@ -36,7 +36,7 @@ window.APP = window.APP || {};
 
   function blank() {
     return {
-      cards: {}, stars: {}, days: {}, settings: {rate: 1, hideCn: false, level: 'ALL', count: 10}, created: Date.now(),
+      cards: {}, stars: {}, days: {}, settings: {rate: 1, hideCn: false, level: 'ALL', count: 10, conjTenses: ['pres']}, created: Date.now(),
       xp: 0,
       totals: {reviews: 0, correct: 0, games: 0, maxCombo: 0, grammarCorrect: 0},
       best: {match: 0, sprint: 0, audio: 0, build: 0, listen: 0, quiz: 0},
@@ -264,6 +264,7 @@ window.APP = window.APP || {};
     settings: function () { return s.settings; },
     setLevel: function (lv) { s.settings.level = lv || 'ALL'; save(); },
     setCount: function (n) { s.settings.count = n; save(); },
+    setConjTenses: function (list) { s.settings.conjTenses = list; save(); },
     setSetting: function (k, v) { s.settings[k] = v; save(); },
 
     /* ---------- 计分 ---------- */

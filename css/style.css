@@ -292,6 +292,7 @@ p{margin:0}
 
 .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 4px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible;row-gap:7px}
 .chip{
   flex:none;border:1.5px solid var(--line);background:var(--card);color:var(--ink-2);
   border-radius:7px;padding:5px 11px;font-size:12px;line-height:1.3;white-space:nowrap;
@@ -376,6 +377,13 @@ p{margin:0}
 .word .w .pos{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--muted);margin-left:6px;letter-spacing:.02em}
 .word .cn{font-size:12.5px;color:var(--ink-2);margin-top:1px}
 .word .acts{display:flex;gap:5px;margin-left:auto;flex:none}
+.conj-box{
+  margin:10px 0 2px;padding:10px 12px;border:1.5px dashed var(--line);border-radius:12px;
+  background:var(--card-2);
+}
+.conj-row{display:flex;gap:10px;align-items:baseline;padding:2px 0;font-size:14px}
+.conj-row .p{min-width:74px;color:var(--muted);font-size:12px}
+.conj-row .f{font-family:var(--serif);color:var(--ink)}
 .word .ex{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .word.open .ex{display:block}
 .ex .fr{font-size:14.5px;line-height:1.6}
