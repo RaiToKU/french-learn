@@ -195,13 +195,35 @@ window.APP = window.APP || {};
     };
   };
 
-  /* 词典详情里的「最基础变位」：只看现在时 */
+  /* 词典详情里的「最基础变位」：只看现在时；代词式动词用基础动词的形式 + 自反代词 */
+  var REFLEX = ['me', 'te', 'se', 'nous', 'vous', 'se'];
+  /* 单数代词遇元音省音（je m'appelle / il s'appelle），nous / vous 永不舍音 */
+  function reflexPrefix(i, form) {
+    var pron = REFLEX[i];
+    if (i === 3 || i === 4) return pron + ' ';
+    return /^[aeiouyéèêàâîôûh]/.test(String(form || '').toLowerCase()) ? pron.charAt(0) + "'" : pron + ' ';
+  }
+
   P.verbPres = function (word) {
     var base = P.verbForms();
     if (!base) return null;
-    var hit = base[String(word || '').toLowerCase()] || base[word];
+    var w = String(word || '').toLowerCase();
+    var hit = base[w] || base[word];
+    var reflex = false;
+    if (!hit) {
+      var m = /^(?:se\s+|s['’])/.exec(w);
+      if (m) {
+        var root = w.slice(m[0].length);
+        hit = base[root];
+        reflex = !!hit;
+      }
+    }
     if (!hit || !hit.pres || hit.pres.length !== 6 || hit.pres.some(function (f) { return !f; })) return null;
-    return hit.pres;
+    if (!reflex) return {forms: hit.pres, reflex: false};
+    return {
+      reflex: true,
+      forms: hit.pres.map(function (f, i) { return reflexPrefix(i, f) + f; })
+    };
   };
 
   /* ---------- 首页 ---------- */  /* ---------- 首页 ---------- */
@@ -408,7 +430,8 @@ window.APP = window.APP || {};
   /* 词条详情里的变位（只放最基础的现在时） */
   P.lexConjBlock = function (it) {
     if (!/^v\./.test(String(it.p || ''))) return '';
-    var forms = P.verbPres(it.w);
+    var got = P.verbPres(it.w);
+    var forms = got && got.forms;
     if (!forms) {
       if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
         return '<div class="conj-box"><div class="muted small">变位载入中…</div></div>';
@@ -419,7 +442,7 @@ window.APP = window.APP || {};
       return '<div class="conj-row"><span class="p">' + P.CJ_PERSONS[i] + '</span><span class="f">' + U.esc(f) + '</span></div>';
     }).join('');
     return '<div class="conj-box">' +
-      '<div class="row between" style="margin-bottom:4px"><b class="small">现在时</b>' +
+      '<div class="row between" style="margin-bottom:4px"><b class="small">现在时' + (got.reflex ? '（代词式）' : '') + '</b>' +
       '<span class="muted small">' + U.esc(it.w) + '</span></div>' + rows + '</div>';
   };
 
