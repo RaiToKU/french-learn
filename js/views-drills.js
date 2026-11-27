@@ -345,6 +345,8 @@ window.APP = window.APP || {};
       APP.loader.ensureTense(function () { APP.actions.startConj(); });
       return;
     }
+    var missing = P.cjEmptyTenses(APP.ui.conjTenses);
+    if (missing.length) U.toast('这些时式暂时没有题目：' + missing.join(' / '));
     var pool = P.conjPool(APP.ui.conjTenses);
     if (!pool.length) { U.toast('变位题库暂不可用'); return; }
     var n = Math.min(P.sessionSize(20), pool.length);
@@ -375,7 +377,8 @@ window.APP = window.APP || {};
     }
     if (s.idx >= s.items.length) {
       return {html: '<div class="row between" style="margin-bottom:10px"><a class="chip" href="#/games">← 游戏</a></div>' +
-        resultScreen(s, 'conj', '变位完成')};
+        resultScreen(s, 'conj', '变位完成') +
+        '<div style="margin-top:10px"><button class="btn wide" data-act="resetConj">重选时式再练</button></div>'};
     }
     var it = s.items[s.idx];
     var letters = 'ABCD';
@@ -390,7 +393,9 @@ window.APP = window.APP || {};
     }).join('');
     return {
       html:
-        '<div class="row between" style="margin-bottom:8px"><a class="chip" href="#/games">← 退出</a></div>' +
+        '<div class="row between" style="margin-bottom:8px"><a class="chip" href="#/games">← 退出</a>' +
+        '<span class="row gap6"><button class="chip" data-act="resetConj">时式</button>' +
+        '<button class="chip" data-act="startConj">重开</button></span></div>' +
         progressLine(s) +
         '<div class="prompt">' +
         '<div class="label">' + U.esc(it.tenseLabel) + ' · ' + U.esc(it.person) + '</div>' +

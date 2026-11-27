@@ -133,18 +133,30 @@ window.APP = window.APP || {};
       (APP.part.CJ_TENSES || []).forEach(function (x) { if (x.key === k) t = x; });
       if (t && t.src === 'adv') adv = true;
     });
-    return {base: !APP.loader.formsLoaded(), adv: adv && !APP.loader.tensesLoaded()};
+    /* 载入失败的当作「定局」：不再等待，直接让上层用内置 22 词回落，避免自我递归 */
+    return {
+      base: !APP.loader.formsLoaded() && !APP.loader.formsFailed,
+      adv: adv && !APP.loader.tensesLoaded() && !APP.loader.tensesFailed
+    };
   }
 
   function ensureTenseData(then) {
     var need = needTenseData();
-    if (!need.base && !need.adv) { then && then(); return Promise.resolve(); }
+    if (!need.base && !need.adv) { if (then) then(); return Promise.resolve(); }
+    if (APP.loader.tenseBusy) return APP.loader.tenseBusy;      /* 单飞：连点不再排一串回调 */
     var jobs = [];
-    if (need.base && !APP.loader.formsFailed) jobs.push(APP.loader.loadForms());
-    if (need.adv && !APP.loader.tensesFailed) jobs.push(APP.loader.loadTenses());
-    if (!jobs.length) { then && then(); return Promise.resolve(); }
-    return Promise.all(jobs).then(function () { then && then(); })
-      .catch(function () { U.toast('变位数据载入失败，先用内置 22 个动词'); then && then(); });
+    if (need.base) jobs.push(APP.loader.loadForms());
+    if (need.adv) jobs.push(APP.loader.loadTenses());
+    var p = Promise.all(jobs).then(function () {
+      APP.loader.tenseBusy = null;
+      then && then();
+    }).catch(function () {
+      APP.loader.tenseBusy = null;
+      U.toast('变位数据载入失败，先用内置 22 个动词');
+      then && then();
+    });
+    APP.loader.tenseBusy = p;
+    return p;
   }
 
   APP.loader.needTense = needTenseData;
@@ -259,7 +271,12 @@ window.APP = window.APP || {};
       trainLevel: 'ALL',
       level: APP.store.settings().level || 'ALL',
       count: APP.store.settings().count || 10,
-      conjTenses: (APP.store.settings().conjTenses || ['pres']).slice()
+      conjTenses: (function () {
+        var raw = APP.store.settings().conjTenses;
+        var keys = (APP.part.CJ_TENSES || []).map(function (t) { return t.key; });
+        var list = (raw || []).filter(function (k) { return keys.indexOf(k) >= 0; });
+        return list.length ? list : ['pres'];
+      })()
     };
     APP.session = {build: null, listen: null, quiz: null, review: null, match: null, sprint: null, audio: null, gconj: null, judge: null, mix: null};
   }
@@ -448,13 +465,12 @@ window.APP = window.APP || {};
       var id = el.dataset.id;
       APP.ui.lexOpen = (APP.ui.lexOpen === id) ? null : id;
       var it = APP.catalog.byId[id];
-      /* 走进动词详情时按需拉现在时变位 */
-      if (it && /^v\./.test(String(it.p || '')) && !APP.loader.formsLoaded() && !APP.loader.formsFailed) {
-        refreshLexList();
-        APP.loader.loadForms().then(function () { refreshLexList(); }).catch(function () {});
-        return;
-      }
+      var needForms = it && /^v\./.test(String(it.p || '')) && !APP.loader.formsLoaded() && !APP.loader.formsFailed;
       refreshLexList();
+      if (needForms) {
+        U.toast('正在载入变位…');
+        APP.loader.loadForms().then(function () { refreshLexList(); }).catch(function () { refreshLexList(); });
+      }
       var card = document.querySelector('[data-act="lexToggle"][data-id="' + id + '"]');
       if (card) { try { card.focus({preventScroll: true}); } catch (e) {} }
     },
@@ -825,6 +841,12 @@ window.APP = window.APP || {};
     },
 
     /* 填空（语境产出） */
+    resetConj: function () {
+      APP.session.conj = null;
+      APP.session.gconj = null;
+      APP.clock.stop();
+      render();
+    },
     conjTense: function (el) {
       var key = el.dataset.v, list = APP.ui.conjTenses.slice();
       var i = list.indexOf(key);
@@ -839,7 +861,7 @@ window.APP = window.APP || {};
       list.sort(function (x, y) { return order.indexOf(x) - order.indexOf(y); });
       APP.ui.conjTenses = list;
       APP.store.setConjTenses(list);
-      ensureTenseData();
+      ensureTenseData(function () { render(); });
       render();
     },
     importType: function (el) { APP.ui.importText = el.value; },

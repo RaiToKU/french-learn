@@ -86,6 +86,7 @@ window.APP = window.APP || {};
     var map = {};
     Object.keys(raw).forEach(function (inf) {
       var parts = String(raw[inf]).split('|');
+      if (parts.length !== 5) return;          /* 释义里混进 | 会静默错位，直接跳过 */
       map[inf] = {
         cn: parts[0] || '',
         pres: (parts[1] || '').split(','),
@@ -105,6 +106,7 @@ window.APP = window.APP || {};
     var map = {};
     Object.keys(raw).forEach(function (inf) {
       var parts = String(raw[inf]).split('|');
+      if (parts.length !== 3) return;
       map[inf] = {fut: (parts[0] || '').split(','), cond: (parts[1] || '').split(','), subj: (parts[2] || '').split(',')};
     });
     return (P._va = map);
@@ -122,7 +124,11 @@ window.APP = window.APP || {};
     if (!t) return false;
     var src = t.src === 'adv' ? P.verbAdv() : P.verbForms();
     if (!src) return false;
-    return Object.keys(src).length > 0;
+    var need = (t.persons || [0, 1, 2, 3, 4, 5]).length;
+    return Object.keys(src).some(function (inf) {
+      var f = src[inf] && src[inf][key];
+      return f && f.length >= Math.max(3, need) && !f.some(function (x) { return !x || /^[—–-]+$/.test(x); });
+    });
   };
 
   /* 按选中的时式组池；每条 = 一个「动词 × 时式」，slots/labels 处理命令式只有 3 个人称的情况 */
@@ -163,6 +169,14 @@ window.APP = window.APP || {};
     return out;
   };
 
+  /* 选中的时式里，哪些实际没有题目（文件缺失 / 该时式为空） */
+  P.cjEmptyTenses = function (keys) {
+    return (keys || []).filter(function (k) { return !P.cjAvailable(k); }).map(function (k) {
+      var t = P.cjTense(k);
+      return t ? t.label : k;
+    });
+  };
+
   /* 一条题：动词 × 时式 × 人称，选项取同动词同时式的其他人称 */
   P.conjItem = function (pool) {
     if (!pool || !pool.length) return null;
@@ -197,27 +211,30 @@ window.APP = window.APP || {};
 
   /* 词典详情里的「最基础变位」：只看现在时；代词式动词用基础动词的形式 + 自反代词 */
   var REFLEX = ['me', 'te', 'se', 'nous', 'vous', 'se'];
+  /* h aspiré 不省音：se hisser → me hisse（错写成 m'hisse 就是硬错） */
+  var H_ASPIRE = ['hisser', 'heurter', 'hâter', 'hausser', 'harceler', 'haïr', 'hocher', 'hêler', 'humer', 'huer', 'houspiller', 'honnir', 'happer', 'harnacher'];
   /* 单数代词遇元音省音（je m'appelle / il s'appelle），nous / vous 永不舍音 */
   function reflexPrefix(i, form) {
     var pron = REFLEX[i];
     if (i === 3 || i === 4) return pron + ' ';
-    return /^[aeiouyéèêàâîôûh]/.test(String(form || '').toLowerCase()) ? pron.charAt(0) + "'" : pron + ' ';
+    var f = String(form || '').toLowerCase();
+    if (/^h/.test(f) && H_ASPIRE.some(function (v) { return f.indexOf(v) === 0; })) return pron + ' ';
+    return /^[aeiouyéèêàâîôûh]/.test(f) ? pron.charAt(0) + "'" : pron + ' ';
   }
 
   P.verbPres = function (word) {
     var base = P.verbForms();
     if (!base) return null;
     var w = String(word || '').toLowerCase();
-    var hit = base[w] || base[word];
-    var reflex = false;
-    if (!hit) {
-      var m = /^(?:se\s+|s['’])/.exec(w);
-      if (m) {
-        var root = w.slice(m[0].length);
-        hit = base[root];
-        reflex = !!hit;
-      }
-    }
+    /* 带补语的词条（s'occuper de / renoncer à / dépendre de）先剥掉补语，再试代词式还原 */
+    var bare = w.replace(/\s+(?:de|d['’]|à|a|sur|dans|avec|pour|chez|qch|qqn|quelqu'un|quelque\s+chose)\b.*$/, '').trim();
+    var hit = null, reflex = false;
+    [w, bare].forEach(function (cand) {
+      if (!cand || hit) return;
+      if (base[cand]) { hit = base[cand]; return; }
+      var m = /^(?:se\s+|s['’])/.exec(cand);
+      if (m && base[cand.slice(m[0].length)]) { hit = base[cand.slice(m[0].length)]; reflex = true; }
+    });
     if (!hit || !hit.pres || hit.pres.length !== 6 || hit.pres.some(function (f) { return !f; })) return null;
     if (!reflex) return {forms: hit.pres, reflex: false};
     return {
@@ -383,13 +400,17 @@ window.APP = window.APP || {};
       if (ui.lexTheme !== 'ALL' && it.th !== ui.lexTheme) return false;
       if (q) {
         /* 关键词查询：法语输入只匹配词形（忽略重音），中文输入只匹配释义；
-           例句 / 例句翻译 / 主题里出现关键词都不算命中 */
-        var isCn = /[\u4e00-\u9fff]/.test(q);
-        if (isCn) {
-          if (String(it.cn || '').indexOf(q) < 0) return false;
+           「中文 + 拉丁」混排拆开分别匹配（AND）；例句/翻译/主题不参与命中 */
+        var hasCJK = /[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(q);
+        if (hasCJK) {
+          var cjkPart = q.replace(/[^\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g, '');
+          var latinPart = U.norm(q.replace(/[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/g, ''));
+          if (cjkPart && String(it.cn || '').toLowerCase().indexOf(cjkPart) < 0) return false;
+          if (latinPart && U.norm(it.w).indexOf(latinPart) < 0) return false;
         } else {
-          var nq = U.norm(q), nw = U.norm(it.w);
-          if (nw.indexOf(nq) < 0) return false;
+          var nq = U.norm(q);
+          if (!nq) return true;                 /* 纯符号/空白：视为没有关键词 */
+          if (U.norm(it.w).indexOf(nq) < 0) return false;
         }
       }
       return true;
@@ -436,7 +457,10 @@ window.APP = window.APP || {};
       if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
         return '<div class="conj-box"><div class="muted small">变位载入中…</div></div>';
       }
-      return '';
+      if (APP.loader.formsFailed) {
+        return '<div class="conj-box"><div class="muted small">变位数据没载入成功，稍后重试或刷新页面</div></div>';
+      }
+      return '<div class="conj-box"><div class="muted small">这一条没有变位数据（无人称动词或固定搭配）</div></div>';
     }
     var rows = forms.map(function (f, i) {
       return '<div class="conj-row"><span class="p">' + P.CJ_PERSONS[i] + '</span><span class="f">' + U.esc(f) + '</span></div>';
