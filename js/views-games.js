@@ -431,43 +431,26 @@ window.APP = window.APP || {};
   };
 
   /* ---------- 4. 变位冲刺（60 秒） ---------- */
-  var CJ_PERSONS = ['je', 'tu', 'il / elle', 'nous', 'vous', 'ils / elles'];
-
-  function cjOpts(v, tk, pi) {
-    var answer = v[tk][pi], seen = {}, opts = [answer];
-    seen[answer] = 1;
-    function push(form) {
-      if (!form || seen[form] || opts.length >= 4) return;
-      seen[form] = 1; opts.push(form);
-    }
-    U.shuffle([0, 1, 2, 3, 4, 5].filter(function (i) { return i !== pi; })).forEach(function (i) {
-      if (opts.length < 3) push(v[tk][i]);
-    });
-    U.shuffle(FR.VERB_TENSES.map(function (t) { return t.key; }).filter(function (k) { return k !== tk; }))
-      .forEach(function (k) {
-        U.shuffle([0, 1, 2, 3, 4, 5]).forEach(function (i) { push(v[k][i]); });
-      });
-    return U.shuffle(opts);
-  }
-
   function cjItems(n) {
-    var out = [];
+    var pool = P.conjPool(), out = [];
     for (var i = 0; i < n; i++) {
-      var v = FR.VERBS[Math.floor(Math.random() * FR.VERBS.length)];
-      var tk = FR.VERB_TENSES[Math.floor(Math.random() * FR.VERB_TENSES.length)].key;
-      var pi = Math.floor(Math.random() * 6);
-      out.push({
-        inf: v.inf, cn: v.cn, tense: tk, pi: pi,
-        tenseLabel: (FR.VERB_TENSES.filter(function (t) { return t.key === tk; })[0] || {}).label || tk,
-        person: CJ_PERSONS[pi], answer: v[tk][pi], opts: cjOpts(v, tk, pi)
-      });
+      var it = P.conjItem(pool);
+      if (it) out.push(it);
     }
     return out;
   }
 
   APP.actions.startGConj = function () {
     if (APP.loader.ensureAll(function () { APP.actions.startGConj(); })) return;
-    APP.session.gconj = {items: cjItems(60), idx: 0, score: 0, hits: 0, combo: 0, maxCombo: 0, left: 60, finished: false};
+    if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
+      U.toast('正在载入变位词库…');
+      APP.loader.loadForms().then(function () { APP.actions.startGConj(); })
+        .catch(function () { APP.actions.startGConj(); });
+      return;
+    }
+    var built = cjItems(60);
+    if (!built.length) { U.toast('变位题库暂不可用'); return; }
+    APP.session.gconj = {items: built, idx: 0, score: 0, hits: 0, wrong: 0, combo: 0, maxCombo: 0, left: 60, finished: false};
     APP.clock.stop();
     APP.clock.start('gconj', gconjTick);
     APP.render();
@@ -484,7 +467,7 @@ window.APP = window.APP || {};
     if (s.left <= 0) {
       s.finished = true;
       APP.clock.stop();
-      s.result = APP.store.finishGame('gconj', s.score, {perfect: s.hits > 0 && s.hits === s.maxCombo && s.score > 0});
+      s.result = APP.store.finishGame('gconj', s.score, {perfect: s.hits > 0 && s.wrong === 0});
       APP.render();
     }
   }
@@ -513,7 +496,7 @@ window.APP = window.APP || {};
       };
     }
     var it = s.items[s.idx];
-    var o = U.optionOrder({q: it.inf + it.tense + it.pi + s.idx, opts: it.opts, a: it.opts.indexOf(it.answer)});
+    var o = U.optionOrder({q: it.inf + it.tenseLabel + it.person + s.idx, opts: it.opts, a: it.opts.indexOf(it.answer)});
     var letters = 'ABCD';
     return {
       html:

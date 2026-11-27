@@ -337,37 +337,24 @@ window.APP = window.APP || {};
   };
 
   /* ---------------- 变位速练 ---------------- */
-  var PERSONS = ['je', 'tu', 'il / elle', 'nous', 'vous', 'ils / elles'];
-
-  function conjOpts(v, tense, pi) {
-    var answer = v[tense][pi], seen = {}, opts = [answer];
-    seen[answer] = 1;
-    var idxs = [0, 1, 2, 3, 4, 5].filter(function (i) { return i !== pi; });
-    var sameTense = U.shuffle(idxs), otherTense = U.shuffle(FR.VERB_TENSES.map(function (t) { return t.key; })
-      .filter(function (k) { return k !== tense; }));
-    function push(form) {
-      if (!form || seen[form] || opts.length >= 4) return;
-      seen[form] = 1; opts.push(form);
-    }
-    /* 两个同时间不同人称（考词尾）+ 一个其他时式（考时式区分） */
-    sameTense.forEach(function (i) { if (opts.length < 3) push(v[tense][i]); });
-    otherTense.forEach(function (k) { U.shuffle([0, 1, 2, 3, 4, 5]).forEach(function (i) { push(v[k][i]); }); });
-    return U.shuffle(opts);
-  }
-
   APP.actions.startConj = function () {
     if (APP.loader.ensureAll(function () { APP.actions.startConj(); })) return;
-    var keys = FR.VERB_TENSES.map(function (t) { return t.key; });
-    var items = U.shuffle(FR.VERBS).slice(0, Math.min(P.sessionSize(20), FR.VERBS.length)).map(function (v) {
-      var tk = keys[Math.floor(Math.random() * keys.length)];
-      var pi = Math.floor(Math.random() * 6);
-      var label = (FR.VERB_TENSES.filter(function (t) { return t.key === tk; })[0] || {}).label || tk;
-      return {
-        inf: v.inf, cn: v.cn, tense: tk, tenseLabel: label, pi: pi,
-        person: PERSONS[pi], pronominal: !!v.pronominal,
-        answer: v[tk][pi], opts: conjOpts(v, tk, pi), picked: null, counted: false
-      };
-    });
+    if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
+      U.toast('正在载入变位词库…');
+      APP.loader.loadForms().then(function () { APP.actions.startConj(); })
+        .catch(function () { APP.actions.startConj(); });   /* 失败标志已置位，这里直接走回落池 */
+      return;
+    }
+    var pool = P.conjPool();
+    if (!pool.length) { U.toast('变位题库暂不可用'); return; }
+    var n = Math.min(P.sessionSize(20), pool.length);
+    var items = [];
+    for (var i = 0; i < n; i++) {
+      var it = P.conjItem(pool);
+      if (!it) continue;
+      items.push({inf: it.inf, cn: it.cn, tenseLabel: it.tenseLabel, person: it.person,
+        answer: it.answer, opts: it.opts, picked: null, counted: false});
+    }
     APP.session.conj = {items: items, idx: 0, score: 0, answered: 0, finished: false, restart: 'startConj'};
     APP.render();
   };
@@ -428,7 +415,7 @@ window.APP = window.APP || {};
       return it.w.length >= 3 && it.w.length <= 22 && String(it.cn).length <= 26;
     });
     var items = U.shuffle(pool).slice(0, P.sessionSize(40)).map(function (it) {
-      return {id: it.id, w: it.w, cn: it.cn, pos: it.pos, lv: it.lv, typed: '', checked: false, ok: false, revealed: false, counted: false};
+      return {id: it.id, w: it.w, cn: it.cn, pos: it.p, lv: it.lv, typed: '', checked: false, ok: false, revealed: false, counted: false};
     });
     APP.session.spell = {items: items, idx: 0, score: 0, answered: 0, finished: false, restart: 'startSpell'};
     APP.render();
@@ -468,7 +455,7 @@ window.APP = window.APP || {};
         '<div class="prompt" style="text-align:center">' +
         '<div class="label"><span class="tag lv">' + it.lv + '</span> 写出对应的法语词</div>' +
         '<div class="cn" style="font-size:20px;margin-top:6px">' + U.esc(it.cn) + '</div>' +
-        '<div class="muted small" style="margin-top:6px">' + U.esc(it.pos || '') + (it.revealed && !it.checked ? ' · 提示：' + hintOf(it.w) : '') + '</div>' +
+        '<div class="muted small" style="margin-top:6px">' + U.esc(it.pos || it.p || '') + (it.revealed && !it.checked ? ' · 提示：' + hintOf(it.w) : '') + '</div>' +
         '</div>' +
         '<input class="input" id="spellInput" data-input="spellType" placeholder="法语写法…" value="' + U.esc(it.typed) + '" style="margin-top:14px" ' + (it.checked ? 'disabled' : '') + ' aria-label="拼写输入框">' +
         '<div class="row wrap gap8" style="margin-top:12px">' +
@@ -563,15 +550,13 @@ window.APP = window.APP || {};
         typed: '', checked: false, ok: false, counted: false};
     }
     if (kind === 'spell') {
-      return {kind: 'spell', w: it.w, cn: it.cn, pos: it.pos, typed: '', checked: false, ok: false, counted: false};
+      return {kind: 'spell', w: it.w, cn: it.cn, pos: it.p, typed: '', checked: false, ok: false, counted: false};
     }
     if (kind === 'conj') {
-      var v = FR.VERBS[Math.floor(Math.random() * FR.VERBS.length)];
-      var tk = FR.VERB_TENSES[Math.floor(Math.random() * FR.VERB_TENSES.length)].key;
-      var pi = Math.floor(Math.random() * 6);
-      return {kind: 'conj', inf: v.inf, cn: v.cn, person: PERSONS[pi],
-        tenseLabel: (FR.VERB_TENSES.filter(function (t) { return t.key === tk; })[0] || {}).label || tk,
-        answer: v[tk][pi], opts: conjOpts(v, tk, pi), picked: null, counted: false};
+      var it2 = P.conjItem(P.conjPool());
+      if (!it2) return null;
+      return {kind: 'conj', inf: it2.inf, cn: it2.cn, person: it2.person, tenseLabel: it2.tenseLabel,
+        answer: it2.answer, opts: it2.opts, picked: null, counted: false};
     }
     /* gram */
     var g = FR.GRAMMAR[Math.floor(Math.random() * FR.GRAMMAR.length)];

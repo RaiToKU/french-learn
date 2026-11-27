@@ -2,11 +2,12 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
+  APP.version = '1.3.0';
   var appEl = null;
   var lastHash = null;
 
   /* ---------------- 语料懒加载 ---------------- */
-  var LEVELS = ['A1', 'A2', 'B1', 'B2'];
+  var LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
   var loaded = {A1: 1};   /* A1 随页面同步载入，其余按需 */
   var pending = {};
 
@@ -15,17 +16,57 @@ window.APP = window.APP || {};
     loaded: function (lv) { return !!loaded[lv]; },
     missing: function () { return LEVELS.filter(function (lv) { return !loaded[lv]; }); },
     allLoaded: function () { return APP.loader.missing().length === 0; },
+    /* 变位练习池（1,384 个动词的现在时）单独一个文件，进变位练习时才拉 */
+    formsLoaded: function () { return !!(window.FR && FR.VERB_FORMS); },
+    formsFailed: false,
+    loadForms: function () {
+      if (APP.loader.formsLoaded()) return Promise.resolve();
+      if (APP.loader.formsFailed) return Promise.reject(new Error('变位数据此前载入失败'));
+      if (pending.__forms) return pending.__forms;
+      pending.__forms = new Promise(function (resolve, reject) {
+        var el = document.createElement('script'), done = false;
+        var timer = setTimeout(function () { fail(new Error('变位数据超时')); }, 8000);
+        function fail(err) {
+          if (done) return;
+          done = true; clearTimeout(timer); delete pending.__forms;
+          APP.loader.formsFailed = true;
+          reject(err);
+        }
+        el.src = 'data/verb-forms.js';
+        el.async = true;
+        el.onload = function () {
+          if (done) return;
+          if (!window.FR || !FR.VERB_FORMS || !Object.keys(FR.VERB_FORMS).length) return fail(new Error('变位数据为空'));
+          done = true; clearTimeout(timer); delete pending.__forms; resolve();
+        };
+        el.onerror = function () { fail(new Error('变位数据 404')); };
+        document.head.appendChild(el);
+      });
+      return pending.__forms;
+    },
     load: function (levels) {
       var todo = (levels || LEVELS).filter(function (lv) { return !loaded[lv]; });
       if (!todo.length) return Promise.resolve([]);
       return Promise.all(todo.map(function (lv) {
         if (pending[lv]) return pending[lv];
         pending[lv] = new Promise(function (resolve, reject) {
-          var el = document.createElement('script');
+          var el = document.createElement('script'), done = false;
+          var timer = setTimeout(function () { fail('超时'); }, 8000);
+          function fail(msg) {
+            if (done) return;
+            done = true; clearTimeout(timer); delete pending[lv];
+            reject(new Error('载入失败 ' + lv + '：' + msg));
+          }
           el.src = 'data/lexicon-' + lv.toLowerCase() + '.js';
           el.async = true;
-          el.onload = function () { loaded[lv] = 1; delete pending[lv]; resolve(lv); };
-          el.onerror = function () { delete pending[lv]; reject(new Error('载入失败 ' + lv)); };
+          el.onload = function () {
+            if (done) return;
+            var list = window.FR && FR.LEXICON && FR.LEXICON[lv];
+            if (!list || !list.length) return fail('内容为空');
+            done = true; clearTimeout(timer);
+            loaded[lv] = 1; delete pending[lv]; resolve(lv);
+          };
+          el.onerror = function () { fail('网络或 404'); };
           document.head.appendChild(el);
         });
         return pending[lv];
@@ -35,12 +76,20 @@ window.APP = window.APP || {};
     ensureAll: function (then) {
       var miss = APP.loader.missing();
       if (!miss.length) return false;
+      if (APP.loader.busy) return true;              /* 单飞：已经在载入就别再挂回调 */
+      APP.loader.busy = true;
+      var route = location.hash;
       U.toast('正在载入 ' + miss.join(' / ') + ' …');
       APP.loader.load(miss).then(function () {
+        APP.loader.busy = false;
         rebuildCatalog();
+        if (location.hash !== route) return;          /* 用户已经走开了，别再凭空开会话 */
         U.toast('语料已就绪');
         then && then();
-      }).catch(function () { U.toast('语料载入失败，请检查网络后重试'); });
+      }).catch(function () {
+        APP.loader.busy = false;
+        U.toast('语料载入失败，请检查网络后重试');
+      });
       return true;
     }
   };
@@ -73,7 +122,7 @@ window.APP = window.APP || {};
 
   /* 空闲时依次预载 A2 → B1 → B2，载完即点亮 */
   function prefetch() {
-    var queue = ['A2', 'B1', 'B2'];
+    var queue = ['A2', 'B1', 'B2', 'C1'];
     function next() {
       var lv = queue.shift();
       if (!lv) return;
@@ -132,6 +181,7 @@ window.APP = window.APP || {};
     APP.catalog = c;
     APP.counts = {
       lexicon: c.lexicon.length,
+      lexiconTotal: (window.FR && FR.LEXICON_META && FR.LEXICON_META.total) || c.lexicon.length,
       frames: c.frames.length,
       chunks: c.chunks.length,
       grammar: FR.GRAMMAR.length,
@@ -308,10 +358,13 @@ window.APP = window.APP || {};
     goLex: function (el) { APP.ui.lexLevel = el.dataset.v; APP.ui.lexLimit = 60; go('#/lib/lexicon'); },
     lexLevel: function (el) {
       var v = el.dataset.v;
+      APP.ui.lexLevelReq = (APP.ui.lexLevelReq || 0) + 1;
+      var req = APP.ui.lexLevelReq;
       var need = v === 'ALL' ? APP.loader.missing() : (APP.loader.loaded(v) ? [] : [v]);
       if (need.length) {
         U.toast('正在载入 ' + need.join(' / ') + ' …');
         APP.loader.load(need).then(function () {
+          if (req !== APP.ui.lexLevelReq) return;
           APP.ui.lexLevel = v; APP.ui.lexLimit = 60; rebuildCatalog(); render();
         }).catch(function () { U.toast('载入失败，请检查网络'); });
         return;
@@ -327,7 +380,8 @@ window.APP = window.APP || {};
       if (APP.ui.lexQuery.trim() && APP.loader.missing().length) {
         APP.loader.load(APP.loader.missing()).then(function () {
           rebuildCatalog();
-          if (document.activeElement && document.activeElement.id === 'lexInput') refreshLexList();
+          var ae = document.activeElement;
+          if (ae && ae.closest && ae.closest('[data-input="lexSearch"]')) refreshLexList();
           else render();
         }).catch(function () {});
       }
@@ -432,10 +486,13 @@ window.APP = window.APP || {};
     },
     setLevel: function (el) {
       var v = el.dataset.v || 'ALL';
+      APP.ui.levelReq = (APP.ui.levelReq || 0) + 1;
+      var req = APP.ui.levelReq;
       var need = v === 'ALL' ? APP.loader.missing() : (APP.loader.loaded(v) ? [] : [v]);
       if (need.length) {
         U.toast('正在载入 ' + need.join(' / ') + ' …');
         APP.loader.load(need).then(function () {
+          if (req !== APP.ui.levelReq) return;   /* 期间又点了别的级别，以最后一次为准 */
           APP.ui.level = v;
           APP.store.setLevel(v);
           rebuildCatalog();
@@ -704,6 +761,7 @@ window.APP = window.APP || {};
     },
 
     /* 填空（语境产出） */
+    importType: function (el) { APP.ui.importText = el.value; },
     closeType: function (el) {
       var s = APP.session.close;
       if (!s) return;
@@ -960,8 +1018,10 @@ window.APP = window.APP || {};
 
   /* 词条插入/改序后，旧记录不能静默指到别的词上 */
   function levelOfCardId(id) {
-    var m = /^lx:([AB]\d):/.exec(String(id || ''));
-    return m ? m[1] : null;
+    id = String(id || '');
+    var m = /^lx:([A-Z]\d):/.exec(id);
+    if (m) return m[1];
+    return id.indexOf('lx:') === 0 ? '?' : null;   /* 认不出级别也别删 */
   }
 
   function verifyCardSignatures() {
@@ -969,11 +1029,13 @@ window.APP = window.APP || {};
     Object.keys(data.stars || {}).forEach(function (id) {
       var lv = levelOfCardId(id);
       if (lv && !loaded[lv]) return;          /* 该级别还没载入，先别动 */
+      if (lv === '?') return;
       if (!APP.catalog.byId[id]) { delete data.stars[id]; changed = true; }
     });
     Object.keys(data.cards).forEach(function (id) {
       var lv = levelOfCardId(id);
       if (lv && !loaded[lv]) return;          /* 同上 */
+      if (lv === '?') return;
       var it = APP.catalog.byId[id];
       if (!it) { delete data.cards[id]; dropped++; changed = true; return; }
       var sig = String(it.front || '').slice(0, 24);

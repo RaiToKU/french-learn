@@ -9,7 +9,7 @@
 - 分级依据（该卡组自述）：合并 Wiktionary OpenSubtitles Top 20K 法语词频（取前 5000 并归并原形）、CLE 教材 A1–B2 生词、[FLELex](https://cental.uclouvain.be/)（UCLouvain CENTAL）A1–B2 分级词表
 - 许可：[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans)
 
-本应用取其中 **A1–B2 共 6,484 条**，字段 `w / p / cn / ex / exCn` 直接来自该卡组；`th`（主题）为本项目按中文释义关键词自动归类的辅助标签，不属于原作内容。
+本应用取其中 **A1–C1 共 6,998 条（A1 820 / A2 1,387 / B1 2,228 / B2 2,109 / C1 454）**，字段 `w / p / cn / ex / exCn` 直接来自该卡组；`th`（主题）为本项目按中文释义关键词自动归类的辅助标签，不属于原作内容。
 
 ## 2. 手工整理部分
 

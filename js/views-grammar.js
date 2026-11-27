@@ -108,7 +108,7 @@ window.APP = window.APP || {};
         P.libTabs('grammar') +
         '<div class="filterbar">' +
         '<div class="search"><i>🔍</i><input id="gramSearch" data-input="gramSearch" placeholder="搜语法点（中文/法语）" value="' + U.esc(APP.ui.gramQuery || '') + '" aria-label="搜索语法点"></div>' +
-        P.levelChips(APP.ui.gramLevel, 'gramLevel') +
+        P.levelChips(APP.ui.gramLevel, 'gramLevel', null, {levels: P.LEVELS_A2}) +
         '<div class="chips" style="margin-top:6px">' + cats.map(function (c) {
           return '<button class="chip mini ' + (APP.ui.gramCat === c ? 'on' : '') + '" data-act="gramCat" data-v="' + U.esc(c) + '">' +
             (c === 'ALL' ? '全部类别' : U.esc(c)) + '</button>';

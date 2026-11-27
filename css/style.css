@@ -154,7 +154,7 @@ p{margin:0}
   background:var(--card);border:2px solid var(--ink);box-shadow:var(--shadow-lg);position:relative;
 }
 .hero-dash::after{
-  content:"A1 → B2";position:absolute;right:14px;top:-11px;
+  content:"A1 → C1";position:absolute;right:14px;top:-11px;
   background:var(--ink);color:var(--paper);font-size:9.5px;font-weight:800;
   letter-spacing:.18em;padding:2px 8px;border-radius:4px;
 }
@@ -605,7 +605,7 @@ table.conj td:first-child{font-family:var(--font);font-weight:700;color:var(--in
   .app{padding:22px 24px 36px;max-width:760px}
   .game-grid{grid-template-columns:1fr 1fr}
   .scene-grid{grid-template-columns:1fr 1fr}
-  .mini-levels{grid-template-columns:repeat(4,1fr)}
+  .mini-levels{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
   .stat-row{grid-template-columns:repeat(6,1fr)}
   .badge-grid{grid-template-columns:1fr 1fr}
   .best-grid{grid-template-columns:repeat(3,1fr)}

@@ -16,7 +16,7 @@ window.APP = window.APP || {};
   P.libTabs = function (active) {
     var c = APP.counts;
     var items = [
-      ['lexicon', '词汇', c.lexicon],
+      ['lexicon', '词汇', c.lexiconTotal || c.lexicon],
       ['frames', '句型骨架', c.frames],
       ['grammar', '语法字典', c.grammar],
       ['verbs', '动词变位', c.verbs],
@@ -47,8 +47,11 @@ window.APP = window.APP || {};
     return Math.max(3, Math.min(n, max || 60));
   };
 
-  P.levelChips = function (active, act, counts) {
-    var lvs = ['ALL', 'A1', 'A2', 'B1', 'B2'];
+  P.ALL_LEVELS = ['ALL', 'A1', 'A2', 'B1', 'B2', 'C1'];
+  P.LEVELS_A2 = ['ALL', 'A1', 'A2', 'B1', 'B2'];
+
+  P.levelChips = function (active, act, counts, opts) {
+    var lvs = (opts && opts.levels) || P.ALL_LEVELS;
     var ld = APP.loader;
     return '<div class="chips">' + lvs.map(function (lv) {
       var n = counts ? counts[lv] : null;
@@ -60,6 +63,47 @@ window.APP = window.APP || {};
         (notLoaded ? ' <b class="chip-n">载入</b>' : (n ? ' <b class="chip-n">' + n + '</b>' : '')) +
         '</button>';
     }).join('') + '</div>';
+  };
+
+  /* 变位练习池：优先 1,384 个动词的现在时（懒加载），回落到手工 22 词 × 5 时式 */
+  P.conjPool = function () {
+    var out = [];
+    if (window.FR && FR.VERB_FORMS) {
+      Object.keys(FR.VERB_FORMS).forEach(function (inf) {
+        var e = FR.VERB_FORMS[inf];
+        if (!e || !e.f || e.f.length !== 6) return;
+        var bad = e.f.some(function (f) { return !f || /^[—–-]+$/.test(f) || /^(j|m|t|s|n|qu)'/i.test(f); });
+        if (bad) return;                       /* 残缺/带代词的形式不进题库 */
+        out.push({inf: inf, cn: e.cn || '', tense: '现在时', forms: e.f});
+      });
+    }
+    if (!out.length) {
+      (FR.VERBS || []).forEach(function (v) {
+        (FR.VERB_TENSES || []).forEach(function (t) {
+          if (v[t.key]) out.push({inf: v.inf, cn: v.cn, tense: t.label, forms: v[t.key]});
+        });
+      });
+    }
+    return out;
+  };
+
+  P.CJ_PERSONS = ['je', 'tu', 'il / elle', 'nous', 'vous', 'ils / elles'];
+
+  P.conjItem = function (pool) {
+    if (!pool || !pool.length) return null;
+    var e = pool[Math.floor(Math.random() * pool.length)];
+    if (!e || !e.forms || e.forms.length !== 6) return null;
+    var pi = Math.floor(Math.random() * 6);
+    var answer = e.forms[pi], seen = {}, opts = [answer];
+    seen[answer] = 1;
+    U.shuffle([0, 1, 2, 3, 4, 5].filter(function (i) { return i !== pi; })).forEach(function (i) {
+      var f = e.forms[i];
+      if (f && !seen[f] && opts.length < 4) { seen[f] = 1; opts.push(f); }
+    });
+    return {
+      inf: e.inf, cn: e.cn, tenseLabel: e.tense, person: P.CJ_PERSONS[pi],
+      answer: answer, opts: U.shuffle(opts)
+    };
   };
 
   /* ---------- 首页 ---------- */
@@ -112,7 +156,7 @@ window.APP = window.APP || {};
     var ring = 2 * Math.PI * 52;
     var dash = Math.round(ring * lv.pct / 100);
 
-    var lvCards = ['A1', 'A2', 'B1', 'B2'].map(function (level) {
+    var lvCards = ['A1', 'A2', 'B1', 'B2', 'C1'].map(function (level) {
       var list = APP.catalog.lexicon.filter(function (i) { return i.lv === level; });
       var learned = list.filter(function (i) { return APP.store.isLearned(i.id); }).length;
       var pct = list.length ? Math.round(learned / list.length * 100) : 0;
@@ -271,15 +315,16 @@ window.APP = window.APP || {};
 
   APP.views['lib-lexicon'] = function () {
     var themeOpts = ['ALL'].concat(themes());
-    var meta = FR.LEXICON_META || {levels: {}, total: APP.counts.lexicon, curated: 0};
-    var counts = {ALL: meta.total || APP.counts.lexicon};
+    var meta = FR.LEXICON_META || {levels: {}, total: APP.counts.lexiconTotal, curated: 0};
+    var counts = {ALL: meta.total || APP.counts.lexiconTotal};
     Object.keys(meta.levels || {}).forEach(function (lv) { counts[lv] = meta.levels[lv]; });
     return {
       html:
         P.libTabs('lexicon') +
-        '<p class="source-line">标准词表 A1–B2 · <b>' + (meta.total || APP.counts.lexicon) + '</b> 词' +
-        '（A1 ' + ((meta.levels || {}).A1 || 0) + ' / A2 ' + ((meta.levels || {}).A2 || 0) +
-        ' / B1 ' + ((meta.levels || {}).B1 || 0) + ' / B2 ' + ((meta.levels || {}).B2 || 0) + '）' +
+        '<p class="source-line">标准词表 A1–C1 · <b>' + (meta.total || APP.counts.lexiconTotal) + '</b> 词' +
+        '（' + Object.keys(meta.levels || {}).map(function (lv) {
+          return lv + ' ' + (meta.levels[lv] || 0);
+        }).join(' / ') + '）' +
         ' · 手工核心 ' + (meta.curated || 0) + ' 条 · 来源 the-only-french-deck（CC BY-NC-SA 4.0）</p>' +
         '<div class="filterbar">' +
         '<div class="search"><i>🔍</i><input id="lexSearch" data-input="lexSearch" placeholder="搜法语 / 中文 / 主题" value="' + U.esc(APP.ui.lexQuery) + '" aria-label="搜索词条"></div>' +
@@ -334,7 +379,7 @@ window.APP = window.APP || {};
 
   /* ---------- 精读 ---------- */
   APP.views['lib-reading'] = function () {
-    var groups = ['A1', 'A2', 'B1', 'B2'].map(function (lv) {
+    var groups = P.ALL_LEVELS.filter(function (lv) { return lv !== 'ALL'; }).map(function (lv) {
       var list = FR.READINGS.filter(function (r) { return r.lv === lv; });
       if (!list.length) return '';
       return '<h2 class="group-title">' + lv + '</h2>' +

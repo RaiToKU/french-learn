@@ -20,7 +20,8 @@ window.APP = window.APP || {};
     var s = APP.session.review;
 
     if (!s) {
-      var newLeft = APP.catalog.all.filter(function (i) { return !APP.store.has(i.id); }).length;
+      var totalAll = (FR.LEXICON_META && FR.LEXICON_META.total) || APP.catalog.all.length;
+      var newLeft = Math.max(0, totalAll - st.learned);
       var queue = st.due > 0 ? Math.min(30, st.due) : 12;
       return {
         html:
@@ -38,7 +39,7 @@ window.APP = window.APP || {};
           (st.due > 0 ? '复习 ' + Math.max(1, queue) + ' 张' : '学习新词') + ' →</button>' +
           '<p class="muted small center" style="margin-top:10px">还有 ' + newLeft + ' 个词条/句式未进入复习队列 · 每张 +2 XP</p>' +
           '<div class="section"><div class="section-head"><h2>复习说明</h2></div>' +
-          '<div class="card"><p class="small">队列先排到期卡片，不足 12 张时自动补入新内容（A1→B2 顺序）。' +
+          '<div class="card"><p class="small">队列先排到期卡片，不足 12 张时自动补入新内容（A1→C1 顺序）。' +
           '「忘记」会排到明天并当场再练一次；「模糊」间隔缩短；「记得」按 1→3→7→14→30→60 天推进。</p></div></div>'
       };
     }
@@ -188,10 +189,13 @@ window.APP = window.APP || {};
         '</div></section>' +
 
         '<section class="section"><div class="section-head"><h2>关于</h2></div><div class="card"><p class="small">' +
-        '语库：词汇 ' + APP.counts.lexicon + ' 条 · 句型骨架 ' + APP.counts.frames + ' 个 · 语法点 ' + APP.counts.grammar +
+        '语库：词汇 ' + (APP.counts.lexiconTotal || APP.counts.lexicon) + ' 条 · 句型骨架 ' + APP.counts.frames + ' 个 · 语法点 ' + APP.counts.grammar +
         ' 个（' + APP.counts.quiz + ' 道题）· 动词变位 ' + APP.counts.verbs + ' 个 · 精读 ' + APP.counts.reading +
         ' 篇 · 情景对话 ' + FR.SCENES.length + ' 个。' +
+        '变位练习池 ' + ((FR.LEXICON_META && FR.LEXICON_META.verbs) || 0) + ' 个动词（现在时）。' +
         '朗读使用浏览器 speechSynthesis；无账号、无网络请求。</p>' +
+        '<p class="small muted" style="margin-top:8px">版本 v' + U.esc(APP.version || '1.0.0') + ' · 语料 ' +
+          U.esc(String((FR.LEXICON_META && FR.LEXICON_META.total) || APP.counts.lexicon)) + ' 词（A1–C1）</p>' +
         (FR.LEXICON_META ? '<p class="small muted" style="margin-top:8px">词汇分级与中文释义、例句来源：' +
           U.esc(FR.LEXICON_META.source) + '，分级依据 ' + U.esc(FR.LEXICON_META.basis) + '，许可 ' +
           U.esc(FR.LEXICON_META.license) + '。本应用为非商业学习用途，衍生内容沿用同一许可。</p>' : '') +
