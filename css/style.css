@@ -670,3 +670,10 @@ table.conj td:first-child{font-family:var(--font);font-weight:700;color:var(--in
 @media (prefers-reduced-motion: reduce){
   *{transition:none !important;animation:none !important}
 }
+
+/* 触屏：chip 与小按钮加大到 34px 高，避免误触 */
+@media (pointer: coarse){
+  .chip{min-height:34px;display:inline-flex;align-items:center;padding:7px 12px}
+  .btn-sm{min-height:34px}
+  .tabstrip a,.tabstrip button,.tab{min-height:40px;display:inline-flex;align-items:center}
+}

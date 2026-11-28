@@ -2,7 +2,7 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
-  APP.version = '1.5.0';
+  APP.version = '1.5.1';
   var appEl = null;
   var lastHash = null;
 

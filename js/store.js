@@ -225,7 +225,7 @@ window.APP = window.APP || {};
         c.box = Math.min(6, c.box + 2);
         c.due = now + I[c.box] * DAY;
       }
-      if (g !== 'again') c.reps = (c.reps || 0) + 1;
+      if (g !== 'again') { c.reps = (c.reps || 0) + 1; s.totals.correct++; }   /* 记得/模糊算答对，忘记算答错 */
       c.last = now;
       today().r++;
       s.totals.reviews++;

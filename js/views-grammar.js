@@ -59,9 +59,9 @@ window.APP = window.APP || {};
       '<summary><span class="no">✓</span><span>覆盖清单（8 类 × A1–B2）</span><span class="arrow">▶</span></summary>' +
       '<div class="body">' +
       '<p class="small muted">' + U.esc(FR.GRAMMAR_META.basis) + ' 共 ' + FR.GRAMMAR.length + ' 个语法点、' + quizCount() + ' 道随堂题；下表可按类别核对覆盖情况。</p>' +
-      '<table class="conj coverage-table"><thead>' + head + '</thead><tbody>' + rows +
+      '<div class="table-wrap"><table class="conj coverage-table"><thead>' + head + '</thead><tbody>' + rows +
       '<tr class="total-row"><td>合计</td>' + totals + '<td><b>' + FR.GRAMMAR.length + '</b></td></tr>' +
-      '</tbody></table>' +
+      '</tbody></table></div>' +
       '</div></details>';
   }
 
