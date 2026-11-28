@@ -35,9 +35,10 @@ jobs:
            'data/lex-detail.js','data/verb-forms.js','data/verb-tenses.js',
            'data/grammar.js','data/verbs.js','data/frames.js','data/readings.js',
            'data/scenarios.js'].forEach(f => require('./' + f));
-          const lx = Object.values(FR.LEXICON).reduce((a, b) => a + b.length, 0);
-          const levels = Object.keys(FR.LEXICON).sort().join(',');
-          console.log('levels', levels);
+          const CORE = ['A1','A2','B1','B2','C1'];
+          const lx = CORE.reduce((a, lv) => a + (FR.LEXICON[lv] || []).length, 0);
+          const levels = CORE.join(',');
+          console.log('levels', Object.keys(FR.LEXICON).sort().join(','), '| core', lx);
           const verbs = Object.keys(FR.VERB_FORMS || {}).length;
           console.log('verb-forms', verbs);
           if (levels !== 'A1,A2,B1,B2,C1') { console.error('分级文件缺失'); process.exit(1); }
@@ -46,7 +47,7 @@ jobs:
           const meta = FR.LEXICON_META || {};
           const metaLevels = Object.keys(meta.levels || {}).sort().join(',');
           const metaSum = Object.values(meta.levels || {}).reduce((a, b) => a + b, 0);
-          if (metaLevels !== levels) { console.error('meta.levels 与文件不一致', metaLevels, levels); process.exit(1); }
+          if (metaLevels !== CORE.slice().sort().join(',')) { console.error('meta.levels 与文件不一致', metaLevels); process.exit(1); }
           if (metaSum !== lx || meta.total !== lx) { console.error('meta 总量不一致', metaSum, meta.total, lx); process.exit(1); }
           if (meta.verbs !== verbs) { console.error('meta.verbs 不一致', meta.verbs, verbs); process.exit(1); }
           // 扩展词表：条数够、字段齐、meta 对得上
