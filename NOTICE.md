@@ -25,3 +25,10 @@
 
 `data/lexicon.js` 由脚本从上述卡组的 `words.tsv / meanings.tsv / examples.tsv` 生成：
 过滤 A1–B2 → 解析词性（取词表标签，阴阳性取释义首段）→ 清洗释义 → 取第 1 条例句 → 主题自动归类 → 与手写词条合并去重。脚本未随包分发，可按 NOTICE 描述自行复现。
+
+## 其它第三方数据（CC BY-SA 4.0）
+
+- **扩展词表**（`data/lexicon-ext.js`，2,639 条）：来自 [中文维基词典](https://zh.wiktionary.org)（CC BY-SA 4.0），经 [kaikki.org](https://kaikki.org/zhwiktionary/) 解析。只保留「在 Lexique383 中确认为词元、口语频次 ≥ 0.5、释义含中文、且不与核心词表重复」的条目；这些词**没有 CECR 分级与例句**，只用于查词。
+- **词频 / 音节 / 词形变化**（`data/lex-detail.js`）：来自 [Lexique383](http://www.lexique.org/)（New, Pallier, Brysbaert & Ferrand；CC BY-SA 4.0）。
+
+两者均为 CC BY-SA 4.0，与本项目「署名 · 非商业 · 相同方式共享」兼容；商业使用前请一并替换这两份数据。

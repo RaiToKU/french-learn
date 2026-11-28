@@ -2,7 +2,7 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
-  APP.version = '1.4.1';
+  APP.version = '1.5.0';
   var appEl = null;
   var lastHash = null;
 
@@ -17,6 +17,63 @@ window.APP = window.APP || {};
     missing: function () { return LEVELS.filter(function (lv) { return !loaded[lv]; }); },
     allLoaded: function () { return APP.loader.missing().length === 0; },
     /* 变位练习池（1,384 个动词的现在时）单独一个文件，进变位练习时才拉 */
+    extLoaded: function () { return !!(window.FR && FR.LEXICON && FR.LEXICON.EXT); },
+    extFailed: false,
+    loadExt: function () {
+      if (APP.loader.extLoaded()) return Promise.resolve();
+      if (APP.loader.extFailed) return Promise.reject(new Error('扩展词表此前载入失败'));
+      if (pending.__ext) return pending.__ext;
+      pending.__ext = new Promise(function (resolve, reject) {
+        var el = document.createElement('script'), done = false;
+        var timer = setTimeout(function () { fail(new Error('超时')); }, 8000);
+        function fail(err) {
+          if (done) return;
+          done = true; clearTimeout(timer); delete pending.__ext;
+          APP.loader.extFailed = true;
+          reject(err);
+        }
+        el.src = 'data/lexicon-ext.js?v=' + (APP.version || '1');
+        el.async = true;
+        el.onload = function () {
+          if (done) return;
+          if (!window.FR || !FR.LEXICON || !FR.LEXICON.EXT || !FR.LEXICON.EXT.length) return fail(new Error('空文件'));
+          done = true; clearTimeout(timer); delete pending.__ext;
+          loaded.EXT = 1;                 /* 让级别 chip 从「载入」变可点 */
+          rebuildCatalog();
+          resolve();
+        };
+        el.onerror = function () { fail(new Error('404')); };
+        document.head.appendChild(el);
+      });
+      return pending.__ext;
+    },
+    detailLoaded: function () { return !!(window.FR && FR.LEX_DETAIL); },
+    detailFailed: false,
+    loadDetail: function () {
+      if (APP.loader.detailLoaded()) return Promise.resolve();
+      if (APP.loader.detailFailed) return Promise.reject(new Error('词频数据此前载入失败'));
+      if (pending.__detail) return pending.__detail;
+      pending.__detail = new Promise(function (resolve, reject) {
+        var el = document.createElement('script'), done = false;
+        var timer = setTimeout(function () { fail(new Error('超时')); }, 8000);
+        function fail(err) {
+          if (done) return;
+          done = true; clearTimeout(timer); delete pending.__detail;
+          APP.loader.detailFailed = true;
+          reject(err);
+        }
+        el.src = 'data/lex-detail.js?v=' + (APP.version || '1');
+        el.async = true;
+        el.onload = function () {
+          if (done) return;
+          if (!window.FR || !FR.LEX_DETAIL) return fail(new Error('空文件'));
+          done = true; clearTimeout(timer); delete pending.__detail; resolve();
+        };
+        el.onerror = function () { fail(new Error('404')); };
+        document.head.appendChild(el);
+      });
+      return pending.__detail;
+    },
     formsLoaded: function () { return !!(window.FR && FR.VERB_FORMS); },
     tensesLoaded: function () { return !!(window.FR && FR.VERB_TENSES_ADV); },
     tensesFailed: false,
@@ -214,12 +271,13 @@ window.APP = window.APP || {};
       return id;
     }
 
+    c.ext = [];
     LEVELS.forEach(function (lv) {
       if (!(window.FR && FR.LEXICON && FR.LEXICON[lv])) return;
       FR.LEXICON[lv].forEach(function (e) {
         var it = {
           id: uid('lx:' + lv + ':', e.w + '|' + e.cn), type: 'lexicon', lv: lv, w: e.w, p: e.p,
-          cn: e.cn, ex: e.ex, exCn: e.exCn, th: e.th, front: e.w
+          cn: e.cn, ex: e.ex, exCn: e.exCn, th: e.th, ipa: e.ipa || '', front: e.w
         };
         c.lexicon.push(it); c.all.push(it); c.byId[it.id] = it;
       });
@@ -246,9 +304,17 @@ window.APP = window.APP || {};
       });
     });
 
+    (FR.LEXICON && FR.LEXICON.EXT || []).forEach(function (e) {
+      var it = {
+        id: uid('lx:EXT:', e.w + '|' + e.cn), type: 'lexicon', lv: 'EXT', w: e.w, p: e.p,
+        cn: e.cn, ex: '', exCn: '', th: '扩展', ipa: e.ipa || '', front: e.w, ext: true
+      };
+      c.ext.push(it); c.byId[it.id] = it;    /* 不进 c.all：练习题库只用核心词表 */
+    });
     APP.catalog = c;
     APP.counts = {
       lexicon: c.lexicon.length,
+      ext: (c.ext || []).length,
       lexiconTotal: (window.FR && FR.LEXICON_META && FR.LEXICON_META.total) || c.lexicon.length,
       frames: c.frames.length,
       chunks: c.chunks.length,
@@ -472,6 +538,9 @@ window.APP = window.APP || {};
       if (needForms) {
         U.toast('正在载入变位…');
         APP.loader.loadForms().then(function () { refreshLexList(); }).catch(function () { refreshLexList(); });
+      }
+      if (APP.ui.lexOpen && !APP.loader.detailLoaded() && !APP.loader.detailFailed) {
+        APP.loader.loadDetail().then(function () { refreshLexList(); }).catch(function () {});
       }
       var card = document.querySelector('[data-act="lexToggle"][data-id="' + id + '"]');
       if (card) { try { card.focus({preventScroll: true}); } catch (e) {} }

@@ -31,7 +31,8 @@ jobs:
           node - <<'NODE'
           global.window = global;
           ['data/lexicon-meta.js','data/lexicon-a1.js','data/lexicon-a2.js',
-           'data/lexicon-b1.js','data/lexicon-b2.js','data/lexicon-c1.js','data/verb-forms.js','data/verb-tenses.js',
+           'data/lexicon-b1.js','data/lexicon-b2.js','data/lexicon-c1.js','data/lexicon-ext.js',
+           'data/lex-detail.js','data/verb-forms.js','data/verb-tenses.js',
            'data/grammar.js','data/verbs.js','data/frames.js','data/readings.js',
            'data/scenarios.js'].forEach(f => require('./' + f));
           const lx = Object.values(FR.LEXICON).reduce((a, b) => a + b.length, 0);
@@ -48,6 +49,14 @@ jobs:
           if (metaLevels !== levels) { console.error('meta.levels 与文件不一致', metaLevels, levels); process.exit(1); }
           if (metaSum !== lx || meta.total !== lx) { console.error('meta 总量不一致', metaSum, meta.total, lx); process.exit(1); }
           if (meta.verbs !== verbs) { console.error('meta.verbs 不一致', meta.verbs, verbs); process.exit(1); }
+          // 扩展词表：条数够、字段齐、meta 对得上
+          const ext = FR.LEXICON.EXT || [];
+          if (ext.length < 1500) { console.error('扩展词表太少', ext.length); process.exit(1); }
+          if (meta.ext !== ext.length) { console.error('meta.ext 不一致', meta.ext, ext.length); process.exit(1); }
+          if (meta.totalAll !== meta.total + ext.length) { console.error('meta.totalAll 不一致'); process.exit(1); }
+          const extDirty = ext.filter(e => !e.w || !e.p || !e.cn).length;
+          if (extDirty) { console.error('扩展词条字段缺失', extDirty); process.exit(1); }
+          if (!FR.LEX_DETAIL || Object.keys(FR.LEX_DETAIL).length < 6000) { console.error('缺少词频/屈折数据'); process.exit(1); }
           // 每级下限，防止某一级被削到个位数还发布
           ['A1','A2','B1','B2','C1'].forEach(lv => {
             if ((FR.LEXICON[lv] || []).length < 400) { console.error(lv, '词条过少'); process.exit(1); }

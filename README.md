@@ -171,6 +171,8 @@ french-learn/
 │   ├── lexicon-b1.js     FR.LEXICON.B1  2,228 条（同上）
 │   ├── lexicon-b2.js     FR.LEXICON.B2  2,109 条（同上）
 │   ├── lexicon-c1.js     FR.LEXICON.C1  454 条（同上，最后载入）
+│   ├── lexicon-ext.js    2,639 条扩展词（中文维基词典，仅查词，不进练习）
+│   ├── lex-detail.js     9,440 条的词频 / 音节 / 词形变化（懒加载）
 │   ├── verb-forms.js     1,351 动词 × 现在时/复合过去时/未完成过去时/命令式
 │   ├── verb-tenses.js    1,351 动词 × 将来时/条件式/虚拟式（按选择加载）
 │   ├── frames.js         FR.FRAMES       句型骨架
@@ -180,6 +182,8 @@ french-learn/
 │   └── scenarios.js      FR.SCENES       情景对话
 ├── scripts/              维护脚本
 │   ├── import-deck.py    从卡组 TSV 生成分级词表（A1–C1）
+│   ├── import-zhwiktionary.py  从中文维基词典补扩展词表（真词 + 中文释义 + 音标）
+│   ├── enrich-lexicon.py 补标准字段：IPA / 词频 / 音节 / 词形变化
 │   ├── build-verb-tenses.py  推导七种时式，并用 data/verbs.js 做回归校验
 │   └── deploy-pages.sh   建仓库 + 推送 + 开启 Pages（需 gh 已认证）
 ├── docs/                 界面截图
@@ -254,7 +258,13 @@ git add -A && git commit -m "xxx" && git push
 
 ## 版本与更新日志
 
-**v1.4.1（当前）**
+**v1.5.0（当前）**
+- 词汇 6,998 → **9,637 条**：新增 **2,639 条扩展词**（中文维基词典 CC BY-SA 4.0，只收「Lexique383 里确认为真词、口语频次 ≥0.5、有中文释义」的条目），标为「扩展」单独一级，只在词汇页可查，不进练习题库
+- 每个核心词条补上**标准字段**：国际音标（列表里就能看到）、书面/口语词频（每百万词）、音节数、词形变化（复数/阴性）
+- 新增 `data/lex-detail.js`（9,440 条的词频/音节/屈折，懒加载）与 `scripts/enrich-lexicon.py`
+- 新增 `scripts/import-zhwiktionary.py`：可复现地从 zh.wiktionary 重建扩展词表
+
+**v1.4.1**
 - 词条详情：**只要这个词有变位数据就显示现在时**——包括词性标成名词但本身也作动词的（`lever`、`déjeuner`、`rire`…），标注「该词亦作动词」；纯名词/形容词给一行说明「没有变位」，不再让人以为功能坏了
 - 所有脚本与样式带上版本号查询参数（`?v=1.4.1`），发布后不会再有「旧 JS 配新数据」的缓存错配
 

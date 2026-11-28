@@ -16,7 +16,7 @@ window.APP = window.APP || {};
   P.libTabs = function (active) {
     var c = APP.counts;
     var items = [
-      ['lexicon', '词汇', c.lexiconTotal || c.lexicon],
+      ['lexicon', '词汇', (c.lexiconTotal || c.lexicon) + (c.ext || 0)],
       ['frames', '句型骨架', c.frames],
       ['grammar', '语法字典', c.grammar],
       ['verbs', '动词变位', c.verbs],
@@ -53,13 +53,13 @@ window.APP = window.APP || {};
   P.levelChips = function (active, act, counts, opts) {
     var lvs = (opts && opts.levels) || P.ALL_LEVELS;
     var ld = APP.loader;
-    return '<div class="chips">' + lvs.map(function (lv) {
+    return '<div class="chips wrap">' + lvs.map(function (lv) {
       var n = counts ? counts[lv] : null;
       var notLoaded = lv !== 'ALL' && ld && !ld.loaded(lv);
       return '<button class="chip ' + (active === lv ? 'on' : '') + (notLoaded ? ' loading' : '') +
         '" data-act="' + (act || 'lexLevel') + '" data-v="' + lv + '"' +
         (notLoaded ? ' aria-disabled="true" title="载入后可选中"' : '') + '>' +
-        (lv === 'ALL' ? '全部' : lv) +
+        (lv === 'ALL' ? '全部' : (lv === 'EXT' ? '扩展' : lv)) +
         (notLoaded ? ' <b class="chip-n">载入</b>' : (n ? ' <b class="chip-n">' + n + '</b>' : '')) +
         '</button>';
     }).join('') + '</div>';
@@ -409,10 +409,16 @@ window.APP = window.APP || {};
     return out;
   }
 
+  function lexAll() {
+    var core = APP.catalog.lexicon;
+    var ext = APP.catalog.ext || [];
+    return ext.length ? core.concat(ext) : core;
+  }
+
   function filteredLex() {
     var ui = APP.ui;
     var q = ui.lexQuery.trim().toLowerCase();
-    return APP.catalog.lexicon.filter(function (it) {
+    return lexAll().filter(function (it) {
       if (ui.lexLevel !== 'ALL' && it.lv !== ui.lexLevel) return false;
       if (ui.lexTheme !== 'ALL' && it.th !== ui.lexTheme) return false;
       if (q) {
@@ -442,7 +448,9 @@ window.APP = window.APP || {};
     return '<article class="word ' + (open ? 'open' : '') + '" data-act="lexToggle" data-id="' + it.id + '" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
       '<div class="top">' +
       '<div class="word-main">' +
-      '<div class="w">' + U.esc(it.w) + '<span class="pos">' + U.esc(it.p) + '</span></div>' +
+      '<div class="w">' + U.esc(it.w) +
+        (it.ipa ? '<span class="ipa">' + U.esc(it.ipa) + '</span>' : '') +
+        '<span class="pos">' + U.esc(it.p) + '</span></div>' +
       '<div class="cn">' + U.esc(it.cn) + '</div>' +
       '</div>' +
       '<div class="acts">' +
@@ -451,7 +459,10 @@ window.APP = window.APP || {};
       '<button class="iconbtn ' + (added ? 'on' : '') + '" data-act="lexAdd" data-id="' + it.id + '" title="加入复习">＋</button>' +
       '</div></div>' +
       (open ?
+        P.lexMetaBlock(it) +
         P.lexConjBlock(it) +
+        (it.ext ?
+          '<div class="conj-note">扩展词条：暂无例句（来自中文维基词典 CC BY-SA 4.0）</div>' :
         '<div class="ex">' +
         '<div class="fr">' + U.esc(it.ex) + '</div>' +
         '<div class="cn">' + U.esc(it.exCn) + '</div>' +
@@ -461,9 +472,37 @@ window.APP = window.APP || {};
         '<button class="btn btn-sm" data-act="lexAdd" data-id="' + it.id + '">' + (added ? '已在复习' : '＋ 加入复习') + '</button>' +
         '</div>' +
         '<div class="tagline">' + P.tag(it.lv, 'lv') + P.tag(it.th, 'th') + '</div>' +
-        '</div>' : '') +
+        '</div>') : '') +
       '</article>';
   }
+
+  /* 词条详情里的标准字段：词频 / 音节 / 词形变化 */
+  P.lexMetaBlock = function (it) {
+    var all = (FR.LEX_DETAIL || {})[String(it.w || '').toLowerCase()];
+    if (!all) {
+      if (!APP.loader.detailLoaded() && !APP.loader.detailFailed) {
+        return '<div class="conj-note">词频与词形变化载入中…</div>';
+      }
+      return '';
+    }
+    var book = all[0] || 0, film = all[1] || 0, syl = all[2] || 0;
+    var forms = all.slice(3).filter(Boolean);
+    function fmt(n) {
+      if (!n) return '—';
+      return n >= 100 ? Math.round(n) : (Math.round(n * 10) / 10);
+    }
+    var cells = [
+      ['书面词频', fmt(book) + ' <span class="unit">/百万</span>'],
+      ['口语词频', fmt(film) + ' <span class="unit">/百万</span>'],
+      ['音节', syl ? syl + ' 个' : '—']
+    ];
+    return '<div class="meta-grid">' + cells.map(function (c) {
+      return '<div class="meta-cell"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
+    }).join('') + '</div>' +
+      (forms.length ? '<div class="meta-forms"><span class="k">词形变化</span>' +
+        forms.map(function (f) { return '<b>' + U.esc(f) + '</b>'; }).join('') + '</div>' : '') +
+      '<div class="meta-src">词频与屈折来自 Lexique383（CC BY-SA 4.0）</div>';
+  };
 
   /* 词条详情里的变位（只放最基础的现在时） */
   P.lexConjBlock = function (it) {
@@ -520,21 +559,31 @@ window.APP = window.APP || {};
   };
 
   APP.views['lib-lexicon'] = function () {
+    /* 扩展词表与词频数据：进页面后台拉，载完重绘（不影响首屏） */
+    if (!APP.loader.extLoaded() && !APP.loader.extFailed) {
+      APP.loader.loadExt().then(function () { if (APP.ui) APP.render(); }).catch(function () {});
+    }
+    if (!APP.loader.detailLoaded() && !APP.loader.detailFailed) {
+      APP.loader.loadDetail().catch(function () {});
+    }
     var themeOpts = ['ALL'].concat(themes());
     var meta = FR.LEXICON_META || {levels: {}, total: APP.counts.lexiconTotal, curated: 0};
-    var counts = {ALL: meta.total || APP.counts.lexiconTotal};
+    var extN = (APP.catalog.ext || []).length;
+    var counts = {ALL: (meta.total || APP.counts.lexiconTotal) + extN};
     Object.keys(meta.levels || {}).forEach(function (lv) { counts[lv] = meta.levels[lv]; });
+    if (extN) counts.EXT = extN;
     return {
       html:
         P.libTabs('lexicon') +
-        '<p class="source-line">标准词表 A1–C1 · <b>' + (meta.total || APP.counts.lexiconTotal) + '</b> 词' +
+        '<p class="source-line">核心词表 A1–C1 · <b>' + (meta.total || APP.counts.lexiconTotal) + '</b> 词' +
         '（' + Object.keys(meta.levels || {}).map(function (lv) {
           return lv + ' ' + (meta.levels[lv] || 0);
         }).join(' / ') + '）' +
         ' · 手工核心 ' + (meta.curated || 0) + ' 条 · 来源 the-only-french-deck（CC BY-NC-SA 4.0）</p>' +
+        '<p class="source-line">扩展词表 · <b>' + extN + '</b> 条（中文维基词典 CC BY-SA 4.0，只有释义/音标，暂无例句与分级，不进练习）</p>' +
         '<div class="filterbar">' +
         '<div class="search"><i>🔍</i><input id="lexSearch" data-input="lexSearch" placeholder="法语词（自动忽略重音）/ 中文释义" value="' + U.esc(APP.ui.lexQuery) + '" aria-label="搜索词条"></div>' +
-        P.levelChips(APP.ui.lexLevel, 'lexLevel', counts) +
+        P.levelChips(APP.ui.lexLevel, 'lexLevel', counts, {levels: P.ALL_LEVELS.concat(['EXT'])}) +
         '<div class="chips" style="margin-top:6px">' + themeOpts.map(function (th) {
           return '<button class="chip mini ' + (APP.ui.lexTheme === th ? 'on' : '') + '" data-act="lexTheme" data-v="' + U.esc(th) + '">' +
             (th === 'ALL' ? '全部主题' : U.esc(th)) + '</button>';
