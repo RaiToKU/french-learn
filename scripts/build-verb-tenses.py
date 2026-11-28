@@ -223,11 +223,59 @@ def main():
     write('verb-forms.js', 'FR.VERB_FORMS', base, '变位练习基础时式（%d 个动词）：pres|pc|imp|impv —— 每条 "释义|时式…"，时式内逗号分隔六人称' % len(base))
     write('verb-tenses.js', 'FR.VERB_TENSES_ADV', adv, '变位练习进阶时式（%d 个动词）：fut|cond|subj' % len(adv))
 
+    # 回填 meta：动词数量 + 动词清单（详情页据此判断「这条要不要显示变位」，不必下载 396KB）
+    meta_path = os.path.join(OUTDIR, 'lexicon-meta.js')
+    if os.path.exists(meta_path):
+        txt = open(meta_path, encoding='utf-8').read()
+        m = re.search(r'FR\.LEXICON_META\s*=\s*(\{.*\});', txt, re.S)
+        if m:
+            meta = json.loads(m.group(1))
+            meta['verbs'] = len(base)
+            meta['verbSet'] = sorted(base.keys())
+            open(meta_path, 'w', encoding='utf-8').write(
+                '/* 语料元信息（很小，始终加载） */\nwindow.FR = window.FR || {};\nFR.LEXICON_META = '
+                + json.dumps(meta, ensure_ascii=False) + ';\n')
+            print('  meta.verbs →', len(base), '| verbSet', len(meta['verbSet']))
+    return 0 if not bad else 1
+
+    # 输出：基础时式（全部动词）+ 高级时式（全部动词）两个文件，按练习选择加载
+    gloss = {}
+    for lv in ['a1', 'a2', 'b1', 'b2', 'c1']:
+        path = os.path.join(OUTDIR, 'lexicon-' + lv + '.js')
+        if not os.path.exists(path):
+            continue
+        text = open(path, encoding='utf-8').read()
+        for m in re.finditer(r'\{w:("(?:[^"\\]|\\.)*"),p:.*?cn:("(?:[^"\\]|\\.)*")', text):
+            gloss[json.loads(m.group(1)).lower()] = json.loads(m.group(2))
+
+    # 紧凑格式："释义|时式1|时式2…"，每个时式内部用逗号分隔六个人称（运行期 split 还原）
+    base = {}
+    adv = {}
+    for inf, t in built.items():
+        cn = gloss.get(inf.lower(), '')
+        base[inf] = '|'.join([cn.replace('|', ' '),
+                              ','.join(t['pres']), ','.join(t['pc']),
+                              ','.join(t['imp']) if t['imp'] else '',
+                              ','.join(t['impv'])])
+        adv[inf] = '|'.join([','.join(t['fut']), ','.join(t['cond']), ','.join(t['subj'])])
+
+    def write(fn, var, data, comment):
+        text = ('/* %s\n   来自 the-only-french-deck（CC BY-NC-SA 4.0），由 scripts/build-verb-tenses.py 生成 */\n'
+                'window.FR = window.FR || {};\n%s = %s;\n') % (comment, var, json.dumps(data, ensure_ascii=False))
+        open(os.path.join(OUTDIR, fn), 'w', encoding='utf-8').write(text)
+        print(f'  {fn}: {round(len(text.encode())/1024)}KB')
+
+    write('verb-forms.js', 'FR.VERB_FORMS', base, '变位练习基础时式（%d 个动词）：pres|pc|imp|impv —— 每条 "释义|时式…"，时式内逗号分隔六人称' % len(base))
+    write('verb-tenses.js', 'FR.VERB_TENSES_ADV', adv, '变位练习进阶时式（%d 个动词）：fut|cond|subj' % len(adv))
+
     # 回填 meta.verbs（关于页要显示这个数，但不该为此去加载变位文件）
     meta_path = os.path.join(OUTDIR, 'lexicon-meta.js')
     if os.path.exists(meta_path):
         txt = open(meta_path, encoding='utf-8').read()
         txt = re.sub(r'"verbs":\s*\d+', '"verbs": %d' % len(base), txt, count=1)
+        txt = re.sub(r'"verbSet":\s*\[[^\]]*\]', '', txt)      # 清理上次写入
+        txt = txt.rstrip().rstrip('}')
+        txt += ', "verbSet": %s};\n' % json.dumps(sorted(base.keys()), ensure_ascii=False)
         open(meta_path, 'w', encoding='utf-8').write(txt)
         print('  meta.verbs →', len(base))
     return 0

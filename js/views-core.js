@@ -209,6 +209,23 @@ window.APP = window.APP || {};
     };
   };
 
+  /* 词条是不是动词：先看词性，再看 meta 里的动词清单（词性标成名词但实际也作动词的，如 lever / déjeuner） */
+  P.inVerbSet = function (word) {
+    var list = FR.LEXICON_META && FR.LEXICON_META.verbSet;
+    if (!list) return false;
+    if (!P._vset) { P._vset = {}; list.forEach(function (x) { P._vset[x] = 1; }); }
+    var w = String(word || '').toLowerCase();
+    var bare = w.replace(/\s+(?:de|d['’]|à|a|sur|dans|avec|pour|chez|qch|qqn|quelqu'un|quelque\s+chose)\b.*$/, '').trim();
+    var hit = false;
+    [w, bare].forEach(function (cand) {
+      if (hit || !cand) return;
+      if (P._vset[cand]) { hit = true; return; }
+      var m = /^(?:se\s+|s['’])/.exec(cand);
+      if (m && P._vset[cand.slice(m[0].length)]) hit = true;
+    });
+    return hit;
+  };
+
   /* 词典详情里的「最基础变位」：只看现在时；代词式动词用基础动词的形式 + 自反代词 */
   var REFLEX = ['me', 'te', 'se', 'nous', 'vous', 'se'];
   /* h aspiré 不省音：se hisser → me hisse（错写成 m'hisse 就是硬错） */
@@ -450,15 +467,19 @@ window.APP = window.APP || {};
 
   /* 词条详情里的变位（只放最基础的现在时） */
   P.lexConjBlock = function (it) {
-    if (!/^v\./.test(String(it.p || ''))) return '';
+    var posIsVerb = /^v\./.test(String(it.p || ''));
+    var isVerbPos = posIsVerb || P.inVerbSet(it.w);
     var got = P.verbPres(it.w);
     var forms = got && got.forms;
     if (!forms) {
+      if (!isVerbPos) {
+        return '<div class="conj-note">该词条是名词/形容词，没有变位（动词才有现在时）</div>';
+      }
       if (!APP.loader.formsLoaded() && !APP.loader.formsFailed) {
         return '<div class="conj-box"><div class="muted small">变位载入中…</div></div>';
       }
       if (APP.loader.formsFailed) {
-        return '<div class="conj-box"><div class="muted small">变位数据没载入成功，稍后重试或刷新页面</div></div>';
+        return '<div class="conj-note">变位数据没载入成功，稍后重试或刷新页面</div>';
       }
       return '<div class="conj-box"><div class="muted small">这一条没有变位数据（无人称动词或固定搭配）</div></div>';
     }
@@ -466,7 +487,8 @@ window.APP = window.APP || {};
       return '<div class="conj-row"><span class="p">' + P.CJ_PERSONS[i] + '</span><span class="f">' + U.esc(f) + '</span></div>';
     }).join('');
     return '<div class="conj-box">' +
-      '<div class="row between" style="margin-bottom:4px"><b class="small">现在时' + (got.reflex ? '（代词式）' : '') + '</b>' +
+      '<div class="row between" style="margin-bottom:4px"><b class="small">现在时' +
+        (got.reflex ? '（代词式）' : (posIsVerb ? '' : '（该词亦作动词）')) + '</b>' +
       '<span class="muted small">' + U.esc(it.w) + '</span></div>' + rows + '</div>';
   };
 

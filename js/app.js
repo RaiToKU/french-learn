@@ -2,7 +2,7 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
-  APP.version = '1.4.0';
+  APP.version = '1.4.1';
   var appEl = null;
   var lastHash = null;
 
@@ -33,7 +33,7 @@ window.APP = window.APP || {};
           APP.loader.tensesFailed = true;
           reject(err);
         }
-        el.src = 'data/verb-tenses.js';
+        el.src = 'data/verb-tenses.js?v=' + (APP.version || '1');
         el.async = true;
         el.onload = function () {
           if (done) return;
@@ -61,7 +61,7 @@ window.APP = window.APP || {};
           APP.loader.formsFailed = true;
           reject(err);
         }
-        el.src = 'data/verb-forms.js';
+        el.src = 'data/verb-forms.js?v=' + (APP.version || '1');
         el.async = true;
         el.onload = function () {
           if (done) return;
@@ -88,7 +88,7 @@ window.APP = window.APP || {};
             done = true; clearTimeout(timer); delete pending[lv];
             reject(new Error('载入失败 ' + lv + '：' + msg));
           }
-          el.src = 'data/lexicon-' + lv.toLowerCase() + '.js';
+          el.src = 'data/lexicon-' + lv.toLowerCase() + '.js?v=' + (APP.version || '1');
           el.async = true;
           el.onload = function () {
             if (done) return;
@@ -465,7 +465,9 @@ window.APP = window.APP || {};
       var id = el.dataset.id;
       APP.ui.lexOpen = (APP.ui.lexOpen === id) ? null : id;
       var it = APP.catalog.byId[id];
-      var needForms = it && /^v\./.test(String(it.p || '')) && !APP.loader.formsLoaded() && !APP.loader.formsFailed;
+      /* 词性标成名词但本身也是动词的（lever / déjeuner / boulanger…）同样要能看变位 */
+      var needForms = it && !APP.loader.formsLoaded() && !APP.loader.formsFailed &&
+        (/^v\./.test(String(it.p || '')) || APP.part.inVerbSet(it.w));
       refreshLexList();
       if (needForms) {
         U.toast('正在载入变位…');
