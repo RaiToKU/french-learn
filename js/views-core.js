@@ -17,7 +17,7 @@ window.APP = window.APP || {};
   P.libTabs = function (active) {
     var c = APP.counts;
     var items = [
-      ['lexicon', '词汇', (c.lexiconTotal || c.lexicon) + (c.ext || 0)],
+      ['lexicon', '词汇', (FR.LEXICON_META && FR.LEXICON_META.totalAll) || ((c.lexiconTotal || c.lexicon) + (c.ext || 0))],
       ['frames', '句型骨架', c.frames],
       ['grammar', '语法字典', c.grammar],
       ['verbs', '动词变位', c.verbs],
@@ -63,7 +63,7 @@ window.APP = window.APP || {};
       }
       return '<button class="chip ' + (active === lv ? 'on' : '') + (notLoaded ? ' loading' : '') +
         '" data-act="' + (act || 'lexLevel') + '" data-v="' + lv + '"' +
-        (notLoaded ? ' aria-disabled="true" title="载入后可选中"' : '') + '>' +
+        (notLoaded ? ' aria-disabled="true" title="点了会载入这一级"' : '') + '>' +
         (lv === 'ALL' ? '全部' : (lv === 'EXT' ? '扩展' : lv)) +
         (notLoaded ? ' <b class="chip-n">载入</b>' : (n ? ' <b class="chip-n">' + n + '</b>' : '')) +
         '</button>';
@@ -424,6 +424,7 @@ window.APP = window.APP || {};
     var ui = APP.ui;
     var q = ui.lexQuery.trim().toLowerCase();
     return lexAll().filter(function (it) {
+      if (it._n === undefined) it._n = U.norm(it.w);   /* 词形归一化只算一次 */
       if (ui.lexLevel !== 'ALL' && it.lv !== ui.lexLevel) return false;
       if (ui.lexTheme !== 'ALL' && it.th !== ui.lexTheme) return false;
       if (q) {
@@ -434,11 +435,11 @@ window.APP = window.APP || {};
           var cjkPart = q.replace(/[^\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g, '');
           var latinPart = U.norm(q.replace(/[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/g, ''));
           if (cjkPart && String(it.cn || '').toLowerCase().indexOf(cjkPart) < 0) return false;
-          if (latinPart && U.norm(it.w).indexOf(latinPart) < 0) return false;
+          if (latinPart && it._n.indexOf(latinPart) < 0) return false;
         } else {
           var nq = U.norm(q);
           if (!nq) return true;                 /* 纯符号/空白：视为没有关键词 */
-          if (U.norm(it.w).indexOf(nq) < 0) return false;
+          if (it._n.indexOf(nq) < 0) return false;
         }
       }
       return true;
@@ -485,7 +486,10 @@ window.APP = window.APP || {};
   P.lexMetaBlock = function (it) {
     var all = (FR.LEX_DETAIL || {})[String(it.w || '').toLowerCase()];
     if (!all) {
-      if (!APP.loader.detailLoaded() && !APP.loader.detailFailed) {
+      if (!APP.loader.detailLoaded()) {
+        if (APP.loader.detailFailed) {
+          return '<div class="conj-note">词频数据没载入成功 <button class="btn btn-sm" data-act="reloadDetail" style="margin-left:6px">重试</button></div>';
+        }
         return '<div class="conj-note">词频与词形变化载入中…</div>';
       }
       return '';
@@ -551,8 +555,8 @@ window.APP = window.APP || {};
 
   P.lexFiltered = filteredLex;
 
-  P.lexList = function () {
-    var list = filteredLex();
+  P.lexList = function (precomputed) {
+    var list = precomputed || filteredLex();
     var show = list.slice(0, APP.ui.lexLimit);
     var html = show.map(lexItemHTML).join('');
     if (!list.length) {
@@ -568,13 +572,14 @@ window.APP = window.APP || {};
     if (!APP.loader.extLoaded() && !APP.loader.extFailed) {
       APP.loader.loadExt().then(function () { if (APP.ui) APP.render(); }).catch(function () {});
     }
-    if (!APP.loader.detailLoaded() && !APP.loader.detailFailed) {
-      APP.loader.loadDetail().catch(function () {});
-    }
+    var filtered = filteredLex();          /* 计数与列表共用一次筛选结果 */
     var themeOpts = ['ALL'].concat(themes());
     var meta = FR.LEXICON_META || {levels: {}, total: APP.counts.lexiconTotal, curated: 0};
-    var extN = (APP.catalog.ext || []).length;
-    var counts = {ALL: (meta.total || APP.counts.lexiconTotal) + extN};
+    var coreN = meta.total || APP.counts.lexiconTotal;
+    /* 扩展条数以 meta 为准，避免首屏显示 0 再跳到 2639 */
+    var extN = meta.ext || (APP.catalog.ext || []).length;
+    var extReady = APP.loader.extLoaded();
+    var counts = {ALL: coreN + extN};
     Object.keys(meta.levels || {}).forEach(function (lv) { counts[lv] = meta.levels[lv]; });
     if (extN) counts.EXT = extN;
     return {
@@ -585,7 +590,9 @@ window.APP = window.APP || {};
           return lv + ' ' + (meta.levels[lv] || 0);
         }).join(' / ') + '）' +
         ' · 手工核心 ' + (meta.curated || 0) + ' 条 · 来源 the-only-french-deck（CC BY-NC-SA 4.0）</p>' +
-        '<p class="source-line">扩展词表 · <b>' + extN + '</b> 条（中文维基词典 CC BY-SA 4.0，只有释义/音标，暂无例句与分级，不进练习）</p>' +
+        '<p class="source-line">扩展词表 · <b>' + extN + '</b> 条' + (extReady ? '' : '（载入中…）') +
+        '（中文维基词典 CC BY-SA 4.0，只有释义/音标，暂无例句与分级，不进练习）</p>' +
+        '<p class="source-line">合计 <b>' + (coreN + extN) + '</b> 词 = 核心 ' + coreN + ' + 扩展 ' + extN + '</p>' +
         '<div class="filterbar">' +
         '<div class="search"><i>🔍</i><input id="lexSearch" data-input="lexSearch" placeholder="法语词（自动忽略重音）/ 中文释义" value="' + U.esc(APP.ui.lexQuery) + '" aria-label="搜索词条"></div>' +
         P.levelChips(APP.ui.lexLevel, 'lexLevel', counts, {levels: P.ALL_LEVELS.concat(['EXT'])}) +
@@ -594,9 +601,9 @@ window.APP = window.APP || {};
             (th === 'ALL' ? '全部主题' : U.esc(th)) + '</button>';
         }).join('') + '</div>' +
         '</div>' +
-        '<div class="progressline"><span id="lexCount">共 ' + filteredLex().length + ' 条 · 当前显示 ' +
-        Math.min(filteredLex().length, APP.ui.lexLimit) + ' 条</span></div>' +
-        '<div id="lexList">' + P.lexList() + '</div>'
+        '<div class="progressline"><span id="lexCount">共 ' + filtered.length + ' 条 · 当前显示 ' +
+        Math.min(filtered.length, APP.ui.lexLimit) + ' 条</span></div>' +
+        '<div id="lexList">' + P.lexList(filtered) + '</div>'
     };
   };
 

@@ -2,7 +2,7 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
-  APP.version = '1.5.2';
+  APP.version = '1.5.3';
   var appEl = null;
   var lastHash = null;
 
@@ -247,6 +247,8 @@ window.APP = window.APP || {};
 
   /* 空闲时依次预载 A2 → B1 → B2，载完即点亮 */
   function prefetch() {
+    var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''))) return;   /* 省流量/弱网：不预载 */
     var queue = ['A2', 'B1', 'B2', 'C1'];
     function next() {
       var lv = queue.shift();
@@ -512,6 +514,14 @@ window.APP = window.APP || {};
       APP.ui.lexLevel = v; APP.ui.lexLimit = 60; render();
     },
     lexTheme: function (el) { APP.ui.lexTheme = el.dataset.v; APP.ui.lexLimit = 60; render(); },
+    /* 词频数据载入失败后的重试 */
+    reloadDetail: function () {
+      APP.loader.detailFailed = false;
+      delete pending.__detail;
+      APP.render();
+      APP.loader.loadDetail().then(function () { APP.render(); }).catch(function () { APP.render(); });
+    },
+
     /* 扩展词表载入失败后的重试 */
     reloadExt: function () {
       APP.loader.extFailed = false;
@@ -547,7 +557,7 @@ window.APP = window.APP || {};
         APP.loader.loadForms().then(function () { refreshLexList(); }).catch(function () { refreshLexList(); });
       }
       if (APP.ui.lexOpen && !APP.loader.detailLoaded() && !APP.loader.detailFailed) {
-        APP.loader.loadDetail().then(function () { refreshLexList(); }).catch(function () {});
+        APP.loader.loadDetail().then(function () { refreshLexList(); }).catch(function () { refreshLexList(); });
       }
       var card = document.querySelector('[data-act="lexToggle"][data-id="' + id + '"]');
       if (card) { try { card.focus({preventScroll: true}); } catch (e) {} }
@@ -1199,6 +1209,7 @@ window.APP = window.APP || {};
 
   /* 词条插入/改序后，旧记录不能静默指到别的词上 */
   function levelOfCardId(id) {
+    if (/^lx:EXT:/.test(id)) return 'EXT';
     id = String(id || '');
     var m = /^lx:([A-Z]\d):/.exec(id);
     if (m) return m[1];
@@ -1234,6 +1245,11 @@ window.APP = window.APP || {};
     buildCatalog();
     initState();
     verifyCardSignatures();
+    /* 手里有扩展词卡片（lx:EXT:）就补拉扩展表：否则复习队列会缺这几张、旧卡也校验不到 */
+    var hasExtCard = Object.keys(APP.store.data.cards || {}).some(function (id) { return id.indexOf('lx:EXT:') === 0; });
+    if (hasExtCard && !APP.loader.extLoaded() && !APP.loader.extFailed) {
+      APP.loader.loadExt().then(function () { verifyCardSignatures(); APP.render(); }).catch(function () {});
+    }
 
     /* 点击特效：可点元素上的水波纹（不干扰事件本身） */
     var RIPPLE_SEL = '.btn, .opt, .chip, .iconbtn, .tok, .mcard, .game-card, .tab, .badge-chip, .vocab, .verb-chip, .judge-btn';

@@ -671,9 +671,12 @@ table.conj td:first-child{font-family:var(--font);font-weight:700;color:var(--in
   *{transition:none !important;animation:none !important}
 }
 
-/* 触屏：chip 与小按钮加大到 34px 高，避免误触 */
-@media (pointer: coarse){
-  .chip{min-height:34px;display:inline-flex;align-items:center;padding:7px 12px}
+/* 触屏：可点元素加大，避免误触（用 any-pointer 覆盖触屏笔记本） */
+@media (pointer: coarse), (any-pointer: coarse){
+  .chip,.chip.mini{min-height:34px;display:inline-flex;align-items:center;padding:7px 12px}
   .btn-sm{min-height:34px}
-  .tabstrip a,.tabstrip button,.tab{min-height:40px;display:inline-flex;align-items:center}
+  .iconbtn{min-width:38px;min-height:38px}
+  .opt{min-height:48px}
+  .tab{min-height:40px;display:inline-flex;align-items:center}
+  .badge-chip,.vocab,.judge-btn{min-height:40px}
 }

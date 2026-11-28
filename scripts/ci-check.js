@@ -38,8 +38,28 @@ if (meta.totalAll !== meta.total + ext.length) fail('meta.totalAll 不一致');
 const extDirty = ext.filter(function (e) { return !e.w || !e.p || !e.cn; }).length;
 if (extDirty) fail('扩展词条字段缺失: ' + extDirty);
 
+/* 4b. 核心与扩展不重叠、扩展内部不重复（import 脚本承诺的不变量） */
+const coreForms = new Set();
+CORE.forEach(function (lv) { (FR.LEXICON[lv] || []).forEach(function (e) { coreForms.add(e.w.toLowerCase()); }); });
+const overlap = ext.filter(function (e) { return coreForms.has(e.w.toLowerCase()); });
+if (overlap.length) fail('核心与扩展词形重叠: ' + overlap.slice(0, 5).map(function (e) { return e.w; }).join(','));
+const seen = Object.create(null), dup = [];
+ext.forEach(function (e) { var k = e.w.toLowerCase(); if (seen[k]) dup.push(e.w); seen[k] = 1; });
+if (dup.length) fail('扩展词表内部重复: ' + dup.slice(0, 5).join(','));
+
 /* 5. 词频/屈折数据 */
 if (!FR.LEX_DETAIL || Object.keys(FR.LEX_DETAIL).length < 6000) fail('缺少词频/屈折数据');
+/* 词频数据应覆盖所有核心单词（多词短语在 Lexique 里没有单条记录，属正常） */
+const missingDetail = [];
+CORE.forEach(function (lv) {
+  (FR.LEXICON[lv] || []).forEach(function (e) {
+    /* 只看普通小写单词：带空格/连字符/撇号/首字母大写的（固定短语、专名、代词式动词）Lexique 里未必有单条 */
+    if (!/^[a-zàâäçéèêëîïôöùûüÿœæ]+$/.test(e.w)) return;
+    if (!FR.LEX_DETAIL[e.w.toLowerCase()]) missingDetail.push(lv + ':' + e.w);
+  });
+});
+if (missingDetail.length > 25) fail('词频数据漏了 ' + missingDetail.length + ' 个普通单词: ' + missingDetail.slice(0, 5).join(','));
+console.log('词频漏项(普通单词)', missingDetail.length, missingDetail.slice(0, 6).join(','));
 
 /* 6. 变位池：基础/进阶条数一致、形式六项且干净 */
 const verbs = Object.keys(FR.VERB_FORMS || {}).length;

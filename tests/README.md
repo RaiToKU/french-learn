@@ -21,6 +21,7 @@ CHROME=/path/to/chrome bash tests/run.sh
 | `_walk7.html` | 答对计数与重复点击防重（`APP.ui.quiz` 守卫） |
 | `_walk8.html` | 扩展词加进复习队列后，复习卡片正常渲染（无 undefined） |
 | `_walk9.html` | 扩展词表载入失败 → chip 变「重试」→ 点击恢复 |
+| `_walk10.html` | 计数不闪烁 / 词频按需加载 / 扩展 chip 单次下载 / 扩展卡校验与幽灵卡清理 |
 
 注意：headless Chrome 的最小窗口宽度约 500px，直接用 `--window-size=390` 截图会看起来被裁；
 测窄屏要用 iframe 指定宽度（`_walk5.html?w=390` 就是这么做的）。

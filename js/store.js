@@ -211,6 +211,7 @@ window.APP = window.APP || {};
     card: function (id) { return s.cards[id] || null; },
 
     grade: function (id, g) {
+      if (['again', 'hard', 'good', 'easy'].indexOf(g) < 0) g = 'good';   /* 未知评分按「记得」处理，不接受任意字符串 */
       var c = store.add(id);
       var now = Date.now();
       if (g === 'again') {
@@ -236,8 +237,12 @@ window.APP = window.APP || {};
 
     dueList: function () {
       var now = Date.now();
+      var extReady = !!(window.FR && FR.LEXICON && FR.LEXICON.EXT);
       return Object.keys(s.cards)
-        .filter(function (id) { return s.cards[id].due <= now; })
+        .filter(function (id) {
+          if (!extReady && id.indexOf('lx:EXT:') === 0) return false;   /* 扩展表未载入：先不排期 */
+          return s.cards[id].due <= now;
+        })
         .sort(function (a, b) { return s.cards[a].due - s.cards[b].due; });
     },
 

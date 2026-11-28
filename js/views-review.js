@@ -67,7 +67,8 @@ window.APP = window.APP || {};
       front = '<div class="front"><div class="front-fr">' + U.esc(item.w) + '</div>' +
         '<div class="muted small" style="margin-top:6px">' + U.esc(item.p) + '</div></div>';
       back = '<div class="back"><div class="cn">' + U.esc(item.cn) + '</div>' +
-        '<div class="ex">' + U.esc(item.ex) + '<div class="muted small" style="margin-top:4px">' + U.esc(item.exCn) + '</div></div></div>';
+        (item.ex ? '<div class="ex">' + U.esc(item.ex) +
+          '<div class="muted small" style="margin-top:4px">' + U.esc(item.exCn || '') + '</div></div>' : '') + '</div>';
     } else {
       front = '<div class="front"><div class="front-fr" style="font-size:21px">' + U.esc(item.fr) + '</div></div>';
       back = '<div class="back"><div class="cn">' + U.esc(item.cn) + '</div>' +
@@ -78,7 +79,7 @@ window.APP = window.APP || {};
     return {
       html:
         '<div class="row between" style="margin-bottom:10px">' +
-        '<span class="tag lv">' + U.esc(item.lv || '') + '</span>' +
+        '<span class="tag lv">' + U.esc(item.lv === 'EXT' ? '扩展' : (item.lv || '')) + '</span>' +
         '<span class="muted small">' + (s.i + 1) + ' / ' + s.queue.length + ' · ' + badge + '</span></div>' +
         '<div class="flash ' + (s.flipped ? 'flipped' : '') + '" data-act="flip" role="button" tabindex="0" aria-label="翻转卡片">' +
         '<div class="face">' + front + back +
@@ -86,7 +87,7 @@ window.APP = window.APP || {};
         '</div></div>' +
         '<div class="row gap8" style="justify-content:center;margin-top:10px">' +
         '<button class="btn btn-sm blue" data-say="' + U.esc(speakText) + '">' + U.ic.sound + ' 朗读</button>' +
-        (item.type === 'lexicon' ? '<button class="btn btn-sm" data-say="' + U.esc(item.ex) + '" data-slow="1">🐢 慢速例句</button>' : '') +
+        (item.ex ? '<button class="btn btn-sm" data-say="' + U.esc(item.ex) + '" data-slow="1">🐢 慢速例句</button>' : '') +
         '</div>' +
         (s.flipped ?
           '<div class="grade">' +
@@ -189,13 +190,17 @@ window.APP = window.APP || {};
         '</div></section>' +
 
         '<section class="section"><div class="section-head"><h2>关于</h2></div><div class="card"><p class="small">' +
-        '语库：词汇 ' + (APP.counts.lexiconTotal || APP.counts.lexicon) + ' 条 · 句型骨架 ' + APP.counts.frames + ' 个 · 语法点 ' + APP.counts.grammar +
+        '语库：词汇 ' + (FR.LEXICON_META && FR.LEXICON_META.totalAll || APP.counts.lexiconTotal || APP.counts.lexicon) +
+        ' 条（核心 ' + (FR.LEXICON_META && FR.LEXICON_META.total || APP.counts.lexicon) + ' + 扩展 ' +
+        (FR.LEXICON_META && FR.LEXICON_META.ext || 0) + '）· 句型骨架 ' + APP.counts.frames + ' 个 · 语法点 ' + APP.counts.grammar +
         ' 个（' + APP.counts.quiz + ' 道题）· 动词变位 ' + APP.counts.verbs + ' 个 · 精读 ' + APP.counts.reading +
         ' 篇 · 情景对话 ' + FR.SCENES.length + ' 个。' +
         '变位练习池 ' + ((FR.LEXICON_META && FR.LEXICON_META.verbs) || 0) + ' 个动词（现在时）。' +
         '朗读使用浏览器 speechSynthesis；无账号、无网络请求。</p>' +
         '<p class="small muted" style="margin-top:8px">版本 v' + U.esc(APP.version || '1.0.0') + ' · 语料 ' +
-          U.esc(String((FR.LEXICON_META && FR.LEXICON_META.total) || APP.counts.lexicon)) + ' 词（A1–C1）</p>' +
+          U.esc(String((FR.LEXICON_META && FR.LEXICON_META.totalAll) || APP.counts.lexicon)) + ' 词（核心 A1–C1 ' +
+          U.esc(String((FR.LEXICON_META && FR.LEXICON_META.total) || APP.counts.lexicon)) + ' + 扩展 ' +
+          U.esc(String((FR.LEXICON_META && FR.LEXICON_META.ext) || 0)) + '）</p>' +
         (FR.LEXICON_META ? '<p class="small muted" style="margin-top:8px">词汇分级与中文释义、例句来源：' +
           U.esc(FR.LEXICON_META.source) + '，分级依据 ' + U.esc(FR.LEXICON_META.basis) + '，许可 ' +
           U.esc(FR.LEXICON_META.license) + '。本应用为非商业学习用途，衍生内容沿用同一许可。</p>' : '') +

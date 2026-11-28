@@ -65,7 +65,7 @@ def clean_gloss(g):
 def main():
     have = existing_words()
     lex = lexique()
-    cands = {}
+    entries = []
     for line in open(SRC, encoding='utf-8'):
         try:
             e = json.loads(line)
@@ -106,7 +106,14 @@ def main():
             if g not in seen:
                 seen.add(g); uniq.append(g)
         cn = '；'.join(uniq[:2])
-        cands[key] = {'w': w, 'p': pos, 'cn': cn, 'th': '扩展', 'ipa': ipa}
+        entries.append(((key, POSMAP.get(e.get('pos'))), {'w': w, 'p': pos, 'cn': cn, 'th': '扩展', 'ipa': ipa}))
+
+    # 同形词按 (词形, 词性) 排序后取第一条，保证重复运行结果稳定
+    cands = {}
+    # 同形同词性取「有音标 → 释义长 → 字典序」最优的那条，保证稳定且信息最全
+    for k, v in sorted(entries, key=lambda kv: (kv[0][0], kv[0][1], 0 if kv[1]['ipa'] else 1, -len(kv[1]['cn']), kv[1]['cn'])):
+        if k[0] not in cands:
+            cands[k[0]] = v
 
     items = sorted(cands.values(), key=lambda x: x['w'].lower())
     head = ('/* 扩展词表（%d 条）：中文维基词典的法语词条，只用于查词，不进练习题库\n'

@@ -8,7 +8,7 @@
 用法：FRDECK=/tmp/frdeck2 LEXIQUE=/tmp/lexique/Lexique383/Lexique383.tsv python3 scripts/enrich-lexicon.py
 产物：就地更新 data/lexicon-*.js（加 ipa 字段）+ 生成 data/lex-detail.js（freq/syl/forms）
 """
-import csv, json, os, re, sys
+import csv, json, os, re, sys, tempfile
 
 DECK = os.environ.get('FRDECK', '/tmp/frdeck2')
 LEX = os.environ.get('LEXIQUE', '/tmp/lexique/Lexique383/Lexique383.tsv')
@@ -40,6 +40,15 @@ def load_lex():
         if r['islem'] == '0' and lem and lem != o:
             forms.setdefault(lem, []).append(r)
     return by_ortho, forms
+
+
+def lookup(by_ortho, word):
+    """Lexique383 用 ASCII 写法（oeuf/soeur），叠合字母要退一步查"""
+    key = word.lower()
+    if key in by_ortho:
+        return by_ortho[key]
+    alt = key.replace('œ', 'oe').replace('æ', 'ae')
+    return by_ortho.get(alt, [])
 
 
 def pick(rows, pos):
@@ -74,6 +83,20 @@ def clean_forms(rows, pos):
     return out[:4]
 
 
+def write_atomic(path, text):
+    """先写临时文件再替换，避免中途失败留下半更新"""
+    d = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=d, prefix='.tmp-', suffix='.js')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.replace(tmp, os.path.join(d, '.tmp-failed-' + os.path.basename(path)))
+        raise
+
+
 def main():
     ipa = load_ipa()
     by_ortho, forms = load_lex()
@@ -86,26 +109,33 @@ def main():
         head, body = text.split('[\n', 1)
         lines = body.rstrip().rstrip('];').rstrip().split('\n')
         out = []
+        matched = 0
         for ln in lines:
             m = re.match(r'\s*\{w:("(?:[^"\\]|\\.)*"),p:("(?:[^"\\]|\\.)*"),(?:ipa:("(?:[^"\\]|\\.)*"),)?cn:', ln)
             if not m:
                 out.append(ln)
                 continue
+            matched += 1
             w = json.loads(m.group(1))
             pos = json.loads(m.group(2))
             key = w.lower()
             ip = ipa.get(key, '')
-            rows = by_ortho.get(key) or []
+            rows = lookup(by_ortho, key)
             rows2 = pick(rows, pos) if rows else []
             b, f, s = nums(rows2) if rows2 else (0, 0, 0)
             ff = clean_forms(forms.get(key, []), pos)
+            if ip and 'ipa:' in ln:          # 已有音标：以卡组最新值为准
+                ln = re.sub(r'ipa:"(?:[^"\\]|\\.)*"', 'ipa:' + json.dumps(ip, ensure_ascii=False), ln, count=1)
             if ip and 'ipa:' not in ln:
                 ln = ln.replace('p:' + m.group(2) + ',', 'p:' + m.group(2) + ',ipa:' + json.dumps(ip, ensure_ascii=False) + ',', 1)
             out.append(ln)
             if rows2 or ff:
                 detail[key] = [b, f, s] + ff
-        open(path, 'w', encoding='utf-8').write(head + '[\n' + '\n'.join(out) + '\n];\n')
-        print(lv, 'ok')
+        if matched != len([x for x in lines if x.strip()]):
+            raise SystemExit('%s 有 %d 行没匹配到字段模板（共 %d 行）——字段顺序变了？'
+                             % (lv, len([x for x in lines if x.strip()]) - matched, len(lines)))
+        write_atomic(path, head + '[\n' + '\n'.join(out) + '\n];\n')
+        print(lv, 'ok', matched, '条')
 
     # 扩展词表也补词频/音节（它自带的 ipa 保留）
     ext_path = os.path.join(OUTDIR, 'lexicon-ext.js')
@@ -113,7 +143,7 @@ def main():
         text = open(ext_path, encoding='utf-8').read()
         for m in re.finditer(r'\{w:("(?:[^"\\]|\\.)*"),p:("(?:[^"\\]|\\.)*"),cn:', text):
             w = json.loads(m.group(1)); pos = json.loads(m.group(2)); key = w.lower()
-            rows = by_ortho.get(key) or []
+            rows = lookup(by_ortho, key)
             b, f, syl = nums(pick(rows, pos)) if rows else (0, 0, 0)
             ff = clean_forms(forms.get(key, []), pos)
             if rows or ff:
@@ -125,7 +155,7 @@ def main():
           '   词频与屈折来自 Lexique383（CC BY-SA 4.0，Boris New 等 / UCLouvain & Université Savoie Mont-Blanc）\n'
           '   音标 ipa 已写进各分级词表文件（来自卡组） */\n'
           'window.FR = window.FR || {};\nFR.LEX_DETAIL = ' + json.dumps(detail, ensure_ascii=False) + ';\n')
-    open(os.path.join(OUTDIR, 'lex-detail.js'), 'w', encoding='utf-8').write(js)
+    write_atomic(os.path.join(OUTDIR, 'lex-detail.js'), js)
     print('lex-detail.js', round(len(js.encode()) / 1024), 'KB |', len(detail), '条')
 
 
