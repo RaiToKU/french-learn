@@ -19,6 +19,8 @@ CHROME=/path/to/chrome bash tests/run.sh
 | `_walk5.html` | 390 / 834 / 1280 三档布局：无横向溢出、无超宽元素、触屏点击目标 |
 | `_walk6.html` | 语法随堂题、精读理解题、情景播放、变位表切换 |
 | `_walk7.html` | 答对计数与重复点击防重（`APP.ui.quiz` 守卫） |
+| `_walk8.html` | 扩展词加进复习队列后，复习卡片正常渲染（无 undefined） |
+| `_walk9.html` | 扩展词表载入失败 → chip 变「重试」→ 点击恢复 |
 
 注意：headless Chrome 的最小窗口宽度约 500px，直接用 `--window-size=390` 截图会看起来被裁；
 测窄屏要用 iframe 指定宽度（`_walk5.html?w=390` 就是这么做的）。

@@ -2,7 +2,7 @@
 window.APP = window.APP || {};
 (function () {
   var U = APP.util;
-  APP.version = '1.5.1';
+  APP.version = '1.5.2';
   var appEl = null;
   var lastHash = null;
 
@@ -512,6 +512,13 @@ window.APP = window.APP || {};
       APP.ui.lexLevel = v; APP.ui.lexLimit = 60; render();
     },
     lexTheme: function (el) { APP.ui.lexTheme = el.dataset.v; APP.ui.lexLimit = 60; render(); },
+    /* 扩展词表载入失败后的重试 */
+    reloadExt: function () {
+      APP.loader.extFailed = false;
+      delete pending.__ext;
+      APP.render();
+      APP.loader.loadExt().then(function () { APP.render(); }).catch(function () { APP.render(); });
+    },
     lexSearch: function (el) {
       APP.ui.lexQuery = el.value;
       APP.ui.lexLimit = 60;

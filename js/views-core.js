@@ -6,7 +6,8 @@ window.APP = window.APP || {};
 
   /* ---------- 通用片段 ---------- */
   P.tag = function (txt, cls) {
-    return '<span class="tag ' + (cls || '') + '">' + U.esc(txt) + '</span>';
+    var label = txt === 'EXT' ? '扩展' : txt;
+    return '<span class="tag ' + (cls || '') + '">' + U.esc(label) + '</span>';
   };
 
   P.say = function (text, label, cls) {
@@ -55,7 +56,11 @@ window.APP = window.APP || {};
     var ld = APP.loader;
     return '<div class="chips wrap">' + lvs.map(function (lv) {
       var n = counts ? counts[lv] : null;
-      var notLoaded = lv !== 'ALL' && ld && !ld.loaded(lv);
+      var failed = lv === 'EXT' && ld && ld.extFailed;
+      var notLoaded = !failed && lv !== 'ALL' && ld && !ld.loaded(lv);
+      if (failed) {
+        return '<button class="chip" data-act="reloadExt" title="扩展词表没载入成功，点这里重试">扩展 <b class="chip-n">重试</b></button>';
+      }
       return '<button class="chip ' + (active === lv ? 'on' : '') + (notLoaded ? ' loading' : '') +
         '" data-act="' + (act || 'lexLevel') + '" data-v="' + lv + '"' +
         (notLoaded ? ' aria-disabled="true" title="载入后可选中"' : '') + '>' +
